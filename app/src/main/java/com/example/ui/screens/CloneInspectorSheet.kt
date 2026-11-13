@@ -73,6 +73,7 @@ fun CloneInspectorSheet(
     val glass = LocalLiquidGlass.current
     val currentPlatform = runCatching { DevicePlatform.valueOf(clone.devicePlatform) }
         .getOrDefault(DevicePlatform.ANDROID)
+    val isNative = com.example.data.model.LaunchMode.fromStored(clone.launchMode).isNative
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -117,7 +118,7 @@ fun CloneInspectorSheet(
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 StatusPillBadge(
-                    text = "Anti-Deteksi Aktif",
+                    text = if (isNative) "Profil Kerja" else "Anti-Deteksi Aktif",
                     color = glass.verifiedEmerald,
                     icon = Icons.Filled.VerifiedUser
                 )
@@ -125,7 +126,7 @@ fun CloneInspectorSheet(
                     text = "${currentPlatform.badge} • ${clone.regionCode}",
                     color = glass.accentTeal
                 )
-                if (clone.proxyEnabled) {
+                if (clone.proxyEnabled && !isNative) {
                     StatusPillBadge(
                         text = "${clone.proxyType} Proxy",
                         color = glass.verifiedEmerald,
@@ -136,146 +137,183 @@ fun CloneInspectorSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                text = "Perbandingan Perangkat Asli vs Virtual",
-                style = MaterialTheme.typography.titleSmall
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+            if (!isNative) {
+                Text(
+                    text = "Perbandingan Perangkat Asli vs Virtual",
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Spacer(modifier = Modifier.height(8.dp))
 
-            LiquidGlassSurface(
-                shape = RoundedCornerShape(18.dp),
-                elevated = true,
-                accentRimColor = glass.accentTeal,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                LiquidGlassSurface(
+                    shape = RoundedCornerShape(18.dp),
+                    elevated = true,
+                    accentRimColor = glass.accentTeal,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    ComparisonRow(
-                        field = "Platform & Model",
-                        hostValue = "Android ${hostBaseline.manufacturer} ${hostBaseline.model}",
-                        virtualValue = "${currentPlatform.badge}: ${clone.virtualManufacturer} ${clone.virtualModel}"
-                    )
-                    ComparisonRow(
-                        field = if (currentPlatform == DevicePlatform.IOS) "Device ID iPhone Baru" else "Android ID Baru",
-                        hostValue = hostBaseline.androidId.take(12) + "…",
-                        virtualValue = clone.virtualAndroidId
-                    )
-                    ComparisonRow(
-                        field = "IMEI / Build Perangkat",
-                        hostValue = "Milik perangkat asli",
-                        virtualValue = "Tidak dipalsukan (butuh root)"
-                    )
-                    if (clone.virtualGsfId.isNotBlank() || clone.virtualWidevineId.isNotBlank()) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
                         ComparisonRow(
-                            field = "ID Layanan & Keamanan",
-                            hostValue = "Tersembunyi",
-                            virtualValue = "${clone.virtualGsfId.take(10)}… • ${clone.virtualWidevineId.take(12)}…"
+                            field = "Platform & Model",
+                            hostValue = "Android ${hostBaseline.manufacturer} ${hostBaseline.model}",
+                            virtualValue = "${currentPlatform.badge}: ${clone.virtualManufacturer} ${clone.virtualModel}"
+                        )
+                        ComparisonRow(
+                            field = if (currentPlatform == DevicePlatform.IOS) "Device ID iPhone Baru" else "Android ID Baru",
+                            hostValue = hostBaseline.androidId.take(12) + "…",
+                            virtualValue = clone.virtualAndroidId
+                        )
+                        ComparisonRow(
+                            field = "IMEI / Build Perangkat",
+                            hostValue = "Milik perangkat asli",
+                            virtualValue = "Tidak dipalsukan (butuh root)"
+                        )
+                        if (clone.virtualGsfId.isNotBlank() || clone.virtualWidevineId.isNotBlank()) {
+                            ComparisonRow(
+                                field = "ID Layanan & Keamanan",
+                                hostValue = "Tersembunyi",
+                                virtualValue = "${clone.virtualGsfId.take(10)}… • ${clone.virtualWidevineId.take(12)}…"
+                            )
+                        }
+                        ComparisonRow(
+                            field = "Metadata Sandbox (internal)",
+                            hostValue = "Tidak terlihat situs",
+                            virtualValue = "${clone.virtualSerial.take(8)}… • ${clone.virtualMacAddress}"
+                        )
+                        ComparisonRow(
+                            field = "Timezone, Bahasa & Geo",
+                            hostValue = "Asli Perangkat",
+                            virtualValue = "${clone.timezoneId} • ${clone.localeTag} • ${clone.city}"
+                        )
+                        if (clone.apkDigestSha256.isNotBlank()) {
+                            ComparisonRow(
+                                field = "Integritas Penyimpanan",
+                                hostValue = "Terpisah",
+                                virtualValue = "Terverifikasi (${clone.apkDigestSha256.take(12)}…)"
+                            )
+                        }
+                        ComparisonRow(
+                            field = "Rute Jaringan",
+                            hostValue = "Koneksi Utama",
+                            virtualValue = if (clone.proxyEnabled) "${clone.proxyType} ${clone.proxyHost}:${clone.proxyPort}" else "Tanpa proxy (IP perangkat asli)"
                         )
                     }
-                    ComparisonRow(
-                        field = "Metadata Sandbox (internal)",
-                        hostValue = "Tidak terlihat situs",
-                        virtualValue = "${clone.virtualSerial.take(8)}… • ${clone.virtualMacAddress}"
-                    )
-                    ComparisonRow(
-                        field = "Timezone, Bahasa & Geo",
-                        hostValue = "Asli Perangkat",
-                        virtualValue = "${clone.timezoneId} • ${clone.localeTag} • ${clone.city}"
-                    )
-                    if (clone.apkDigestSha256.isNotBlank()) {
-                        ComparisonRow(
-                            field = "Integritas Penyimpanan",
-                            hostValue = "Terpisah",
-                            virtualValue = "Terverifikasi (${clone.apkDigestSha256.take(12)}…)"
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+            } else {
+                LiquidGlassSurface(
+                    shape = RoundedCornerShape(18.dp),
+                    elevated = true,
+                    accentRimColor = glass.verifiedEmerald,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "Mode Profil Kerja (native)",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = glass.verifiedEmerald
+                        )
+                        Text(
+                            text = "Klon adalah instance aplikasi asli di profil kerja Android: proses, storage, akun, notifikasi, dan Android ID profil sendiri.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurface
+                        )
+                        Text(
+                            text = "IMEI, nomor seri, dan Build tetap milik perangkat — Android memblokir pemalsuan itu tanpa root.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Dibuka lewat tombol Buka Aplikasi. Android meminta persetujuan profil kerja sekali saja.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = scheme.onSurfaceVariant
                         )
                     }
-                    ComparisonRow(
-                        field = "Rute Jaringan",
-                        hostValue = "Koneksi Utama",
-                        virtualValue = if (clone.proxyEnabled) "${clone.proxyType} ${clone.proxyHost}:${clone.proxyPort}" else "Tanpa proxy (IP perangkat asli)"
-                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            if (!isNative) {
+                Text(
+                    text = "Ganti Platform Virtual (Android / iPhone)",
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Spacer(modifier = Modifier.height(8.dp))
 
-            Text(
-                text = "Ganti Platform Virtual (Android / iPhone)",
-                style = MaterialTheme.typography.titleSmall
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                DevicePlatform.entries.forEach { plat ->
-                    val selected = plat == currentPlatform
-                    Surface(
-                        shape = CircleShape,
-                        color = if (selected) scheme.primary.copy(alpha = 0.16f) else scheme.surfaceVariant.copy(alpha = 0.6f),
-                        border = BorderStroke(1.dp, if (selected) scheme.primary else scheme.outline.copy(alpha = 0.4f)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(CircleShape)
-                            .clickable {
-                                if (!selected) onRegenerateIdentity(null, plat)
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(vertical = 10.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    DevicePlatform.entries.forEach { plat ->
+                        val selected = plat == currentPlatform
+                        Surface(
+                            shape = CircleShape,
+                            color = if (selected) scheme.primary.copy(alpha = 0.16f) else scheme.surfaceVariant.copy(alpha = 0.6f),
+                            border = BorderStroke(1.dp, if (selected) scheme.primary else scheme.outline.copy(alpha = 0.4f)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(CircleShape)
+                                .clickable {
+                                    if (!selected) onRegenerateIdentity(null, plat)
+                                }
                         ) {
-                            Icon(
-                                imageVector = if (plat == DevicePlatform.IOS) Icons.Filled.PhoneIphone else Icons.Filled.PhoneAndroid,
-                                contentDescription = null,
-                                tint = if (selected) scheme.primary else scheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = plat.label,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = if (selected) scheme.primary else scheme.onSurface
-                            )
+                            Row(
+                                modifier = Modifier.padding(vertical = 10.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (plat == DevicePlatform.IOS) Icons.Filled.PhoneIphone else Icons.Filled.PhoneAndroid,
+                                    contentDescription = null,
+                                    tint = if (selected) scheme.primary else scheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = plat.label,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = if (selected) scheme.primary else scheme.onSurface
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-            Text(
-                text = "Pindah Negara Virtual Instan",
-                style = MaterialTheme.typography.titleSmall
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Pindah Negara Virtual Instan",
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Spacer(modifier = Modifier.height(8.dp))
 
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 2.dp)
-            ) {
-                items(VirtualRegionCatalog.regions, key = { it.code }) { region ->
-                    val selected = region.code == clone.regionCode
-                    Surface(
-                        shape = CircleShape,
-                        color = if (selected) scheme.primary.copy(alpha = 0.16f) else scheme.surfaceVariant.copy(alpha = 0.6f),
-                        border = BorderStroke(
-                            1.dp,
-                            if (selected) scheme.primary else scheme.outline.copy(alpha = 0.4f)
-                        ),
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .clickable {
-                                if (!selected) onRegenerateIdentity(region.code, null)
-                            }
-                    ) {
-                        Text(
-                            text = "${region.code} • ${region.city}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (selected) scheme.primary else scheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                        )
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(vertical = 2.dp)
+                ) {
+                    items(VirtualRegionCatalog.regions, key = { it.code }) { region ->
+                        val selected = region.code == clone.regionCode
+                        Surface(
+                            shape = CircleShape,
+                            color = if (selected) scheme.primary.copy(alpha = 0.16f) else scheme.surfaceVariant.copy(alpha = 0.6f),
+                            border = BorderStroke(
+                                1.dp,
+                                if (selected) scheme.primary else scheme.outline.copy(alpha = 0.4f)
+                            ),
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable {
+                                    if (!selected) onRegenerateIdentity(region.code, null)
+                                }
+                        ) {
+                            Text(
+                                text = "${region.code} • ${region.city}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (selected) scheme.primary else scheme.onSurface,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -283,17 +321,19 @@ fun CloneInspectorSheet(
             Spacer(modifier = Modifier.height(18.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(
-                    onClick = { onRegenerateIdentity(null, null) },
-                    shape = CircleShape,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
-                        .testTag("inspector_rotate_id_button")
-                ) {
-                    Icon(Icons.Filled.Autorenew, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Acak ID Baru")
+                if (!isNative) {
+                    OutlinedButton(
+                        onClick = { onRegenerateIdentity(null, null) },
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .testTag("inspector_rotate_id_button")
+                    ) {
+                        Icon(Icons.Filled.Autorenew, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Acak ID Baru")
+                    }
                 }
 
                 Button(

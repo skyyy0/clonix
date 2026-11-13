@@ -267,13 +267,13 @@ fun AppCatalogScreen(
                 }
             } else {
                 items(catalogState.filteredDeviceApps, key = { "device_${it.packageName}" }) { app ->
-                    val isContainer = app.recommendedLaunchMode == LaunchMode.ISOLATED_CONTAINER
-                    val modeColor = if (isContainer) glass.verifiedEmerald else glass.accentTeal
+                    val isNative = app.recommendedLaunchMode.isNative
+                    val modeColor = if (isNative) glass.verifiedEmerald else glass.accentTeal
                     val sizeText = if (app.apkSizeBytes > 0L) formatByteSize(app.apkSizeBytes) else "Terpasang"
 
                     CatalogAppRow(
                         app = app,
-                        badgeLabel = if (isContainer) sizeText else "Terpasang • $sizeText",
+                        badgeLabel = if (isNative) "Native • $sizeText" else sizeText,
                         badgeColor = modeColor,
                         onCloneClick = { onSelectAppToClone(app) }
                     )

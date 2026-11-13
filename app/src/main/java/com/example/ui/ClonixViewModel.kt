@@ -286,6 +286,10 @@ class ClonixViewModel(
         }
     }
 
+    fun markCloneOpened(cloneId: String) {
+        viewModelScope.launch { clonixRepository.markCloneLaunched(cloneId) }
+    }
+
     suspend fun loadSandboxProfile(clone: ClonedAppEntity): VirtualDeviceProfile {
         clonixRepository.markCloneLaunched(clone.id)
         return clonixRepository.loadDecryptedProfile(clone)

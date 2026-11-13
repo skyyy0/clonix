@@ -116,7 +116,8 @@ class InstalledAppsRepository(private val context: Context) {
 
             val portalSpec = knownSocialPortals[pkg]
             val category = portalSpec?.category ?: inferCategory(pkg, label, appInfo)
-            val launchMode = LaunchMode.ISOLATED_CONTAINER
+            // Installed device apps are best cloned natively (real second instance).
+            val launchMode = LaunchMode.WORK_PROFILE
             val portalUrl = portalSpec?.url ?: inferWebFallback(pkg)
 
             results += InstalledAppInfo(

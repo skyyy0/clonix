@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.data.local.ClonedAppEntity
 import com.example.data.model.DevicePlatform
+import com.example.data.model.LaunchMode
 import com.example.ui.CloudSyncState
 import com.example.ui.components.AppIconBadge
 import com.example.ui.components.LiquidGlassSurface
@@ -325,6 +326,7 @@ private fun ClonedAppGlassCard(
     val scheme = MaterialTheme.colorScheme
     val glass = LocalLiquidGlass.current
     val isIos = clone.devicePlatform.equals(DevicePlatform.IOS.name, ignoreCase = true)
+    val isNative = LaunchMode.fromStored(clone.launchMode).isNative
     val maskedId = if (clone.virtualAndroidId.length >= 8) {
         "${clone.virtualAndroidId.take(4)}•••${clone.virtualAndroidId.takeLast(4)}"
     } else clone.virtualAndroidId
@@ -398,6 +400,11 @@ private fun ClonedAppGlassCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.weight(1f)
                 ) {
+                    StatusPillBadge(
+                        text = if (isNative) "Profil Kerja" else "Kontainer",
+                        color = if (isNative) glass.verifiedEmerald else glass.accentTeal,
+                        icon = Icons.Filled.Shield
+                    )
                     StatusPillBadge(
                         text = if (isIos) "iOS" else "Android",
                         color = glass.accentTeal,

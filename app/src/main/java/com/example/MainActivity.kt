@@ -1,8 +1,11 @@
 package com.example
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -10,12 +13,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -50,7 +55,10 @@ import com.example.data.local.ClonedAppEntity
 import com.example.data.local.PreferencesRepository
 import com.example.data.local.UserPreferences
 import com.example.data.model.InstalledAppInfo
+import com.example.data.model.LaunchMode
 import com.example.data.model.ProvisioningUiState
+import com.example.security.NativeLaunchResult
+import com.example.security.WorkProfileManager
 import com.example.ui.ClonixViewModel
 import com.example.ui.components.ClonixTab
 import com.example.ui.components.LiquidGlassBackdrop
@@ -201,6 +209,30 @@ fun ClonixRootApp(
         val currentRoute = backStackEntry?.destination?.route ?: ClonixTab.WORKSPACE.route
         val isInSandbox = currentRoute.startsWith("sandbox/")
 
+        val workProfileManager = remember(context) { WorkProfileManager(context) }
+        var pendingNativeCloneId by remember { mutableStateOf<String?>(null) }
+        var nativeNotice by remember { mutableStateOf<String?>(null) }
+
+        val provisionLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            val cloneId = pendingNativeCloneId
+            pendingNativeCloneId = null
+            val clone = clonedApps.firstOrNull { it.id == cloneId }
+            if (result.resultCode == Activity.RESULT_OK && clone != null) {
+                nativeNotice = when (
+                    val launch = workProfileManager.ensureAndLaunch(clone.packageName, clone.originalAppName)
+                ) {
+                    NativeLaunchResult.Launched -> null
+                    NativeLaunchResult.NeedsProfile -> "Profil kerja belum siap. Coba buka lagi."
+                    is NativeLaunchResult.NeedsInstall -> launch.message
+                    is NativeLaunchResult.Failed -> launch.message
+                }
+            } else {
+                nativeNotice = "Profil kerja tidak dibuat. Klon tetap tersimpan dan bisa dibuka lagi dari halaman klon."
+            }
+        }
+
         var appToConfigure by remember { mutableStateOf<InstalledAppInfo?>(null) }
         var cloneToInspect by remember { mutableStateOf<ClonedAppEntity?>(null) }
         var authConnectError by remember { mutableStateOf<String?>(null) }
@@ -217,6 +249,31 @@ fun ClonixRootApp(
 
         fun openSandbox(cloneId: String) {
             com.example.runtime.CloneRuntimeActivity.launchCloneTask(context, cloneId)
+        }
+
+        // Native clones live in an Android work profile, so opening one may need the user's
+        // one-time consent to create that profile, and the app may still have to be installed
+        // there. Every outcome is reported instead of silently doing nothing.
+        fun openClone(clone: ClonedAppEntity) {
+            if (!LaunchMode.fromStored(clone.launchMode).isNative) {
+                openSandbox(clone.id)
+                return
+            }
+            viewModel.markCloneOpened(clone.id)
+            when (val result = workProfileManager.ensureAndLaunch(clone.packageName, clone.originalAppName)) {
+                NativeLaunchResult.Launched -> nativeNotice = null
+                NativeLaunchResult.NeedsProfile -> {
+                    val intent = workProfileManager.provisioningIntent()
+                    if (intent != null) {
+                        pendingNativeCloneId = clone.id
+                        provisionLauncher.launch(intent)
+                    } else {
+                        nativeNotice = "Perangkat ini tidak mendukung profil kerja Android."
+                    }
+                }
+                is NativeLaunchResult.NeedsInstall -> nativeNotice = result.message
+                is NativeLaunchResult.Failed -> nativeNotice = result.message
+            }
         }
 
         LiquidGlassBackdrop {
@@ -282,7 +339,7 @@ fun ClonixRootApp(
                                     },
                                     onLockVault = { viewModel.lockVaultNow() },
                                     onNavigateToCatalog = { navigateToTab(ClonixTab.CATALOG) },
-                                    onLaunchClone = { clone -> openSandbox(clone.id) },
+                                    onLaunchClone = { clone -> openClone(clone) },
                                     onInspectClone = { clone -> cloneToInspect = clone }
                                 )
                             }
@@ -403,7 +460,7 @@ fun ClonixRootApp(
                 onDismiss = { cloneToInspect = null },
                 onLaunch = {
                     cloneToInspect = null
-                    openSandbox(freshClone.id)
+                    openClone(freshClone)
                 },
                 onRegenerateIdentity = { newRegionCode, newPlatform ->
                     viewModel.regenerateIdentity(freshClone.id, newRegionCode, newPlatform) { updated ->
@@ -413,6 +470,19 @@ fun ClonixRootApp(
                 onDeleteClone = {
                     viewModel.deleteClone(freshClone)
                     cloneToInspect = null
+                }
+            )
+        }
+
+        nativeNotice?.let { message ->
+            AlertDialog(
+                onDismissRequest = { nativeNotice = null },
+                title = { Text("Klon Profil Kerja") },
+                text = { Text(message) },
+                confirmButton = {
+                    TextButton(onClick = { nativeNotice = null }) {
+                        Text("Mengerti")
+                    }
                 }
             )
         }

@@ -48,14 +48,34 @@ data class NetworkExitReport(
 )
 
 /**
- * Clonix runs clones inside a WebView container, so the only launch mode is the
- * isolated web container. The enum is kept for database/cloud compatibility.
+ * How a clone is run.
+ *
+ * [WORK_PROFILE] gives a real second installation of the app inside an Android work
+ * profile (separate user, storage, account and per-profile IDs such as ANDROID_ID).
+ * Hardware identity (IMEI, Build, SoC) stays the same, because Android does not let a
+ * normal app rewrite those for another app's process.
+ *
+ * [ISOLATED_CONTAINER] runs the app's web client inside a Clonix container where the
+ * browser-level identity (UA, GPU, screen, timezone, locale, geolocation) and the exit
+ * route can actually be changed.
  */
-enum class LaunchMode(val label: String, val badge: String) {
-    ISOLATED_CONTAINER("Kontainer Web Terisolasi", "WEB");
+enum class LaunchMode(val label: String, val badge: String, val description: String) {
+    WORK_PROFILE(
+        label = "Profil Kerja (aplikasi asli)",
+        badge = "NATIVE",
+        description = "Instance aplikasi sungguhan dengan storage, akun, dan Android ID profil yang baru. IMEI & Build tetap milik perangkat."
+    ),
+    ISOLATED_CONTAINER(
+        label = "Kontainer Clonix (identitas web)",
+        badge = "WEB",
+        description = "Kontainer terisolasi dengan identitas browser & rute negara yang bisa diatur. Butuh proxy/VPN untuk IP negara lain."
+    );
+
+    val isNative: Boolean get() = this == WORK_PROFILE
 
     companion object {
-        fun fromStored(@Suppress("UNUSED_PARAMETER") raw: String?): LaunchMode = ISOLATED_CONTAINER
+        fun fromStored(raw: String?): LaunchMode =
+            if (raw == WORK_PROFILE.name) WORK_PROFILE else ISOLATED_CONTAINER
     }
 }
 

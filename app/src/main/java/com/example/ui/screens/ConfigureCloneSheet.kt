@@ -108,6 +108,7 @@ fun ConfigureCloneSheet(
     var customLabel by remember(app, selectedRegion, selectedPlatform) {
         mutableStateOf("${app.appName} • ${selectedRegion.code} ${selectedPlatform.badge}")
     }
+    var selectedMode by remember(app) { mutableStateOf(app.recommendedLaunchMode) }
     var portalUrl by remember(app) { mutableStateOf(app.defaultWebPortalUrl) }
     var preferDesktopWeb by remember(app) { mutableStateOf(isWhatsApp) }
 
@@ -192,393 +193,485 @@ fun ConfigureCloneSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Platform Picker: Android vs iPhone (iOS)
             Text(
-                text = "Platform Perangkat Virtual",
+                text = "Mode Klon",
                 style = MaterialTheme.typography.titleSmall
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                DevicePlatform.entries.forEach { platform ->
-                    val active = selectedPlatform == platform
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = if (active) scheme.primary.copy(alpha = 0.16f) else scheme.surfaceVariant.copy(alpha = 0.55f),
-                        border = BorderStroke(
-                            width = if (active) 1.5.dp else 1.dp,
-                            color = if (active) scheme.primary else scheme.outline.copy(alpha = 0.4f)
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable {
-                                selectedPlatform = platform
-                                selectedModelIdx = 0
-                                customLabel = "${app.appName} • ${selectedRegion.code} ${platform.badge}"
-                            }
-                            .testTag("platform_option_${platform.name.lowercase()}")
-                    ) {
+            LaunchMode.entries.forEach { mode ->
+                val active = selectedMode == mode
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (active) scheme.primary.copy(alpha = 0.16f) else scheme.surfaceVariant.copy(alpha = 0.55f),
+                    border = BorderStroke(
+                        width = if (active) 1.5.dp else 1.dp,
+                        color = if (active) scheme.primary else scheme.outline.copy(alpha = 0.4f)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { selectedMode = mode }
+                        .testTag("launch_mode_${mode.badge.lowercase()}")
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = if (platform == DevicePlatform.IOS) Icons.Filled.PhoneIphone else Icons.Filled.PhoneAndroid,
-                                contentDescription = null,
-                                tint = if (active) scheme.primary else scheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = platform.label,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = if (active) scheme.primary else scheme.onSurface
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Filled.Public,
-                    contentDescription = null,
-                    tint = glass.accentTeal,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Negara & Lokasi Virtual Perangkat",
-                    style = MaterialTheme.typography.titleSmall
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Layanan akan membaca zona waktu, bahasa, geolokasi, dan IP (bila proxy/VPN aktif) sesuai negara pilihan.",
-                style = MaterialTheme.typography.bodySmall,
-                color = scheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(vertical = 2.dp)
-            ) {
-                items(VirtualRegionCatalog.regions, key = { it.code }) { region ->
-                    val isSelected = region.code == selectedRegion.code
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = if (isSelected) scheme.primary.copy(alpha = 0.16f) else scheme.surfaceVariant.copy(alpha = 0.65f),
-                        border = BorderStroke(
-                            width = if (isSelected) 1.5.dp else 1.dp,
-                            color = if (isSelected) scheme.primary else scheme.outline.copy(alpha = 0.5f)
-                        ),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(18.dp))
-                            .clickable {
-                                selectedRegion = region
-                                selectedModelIdx = 0
-                                customLabel = "${app.appName} • ${region.code} ${selectedPlatform.badge}"
-                            }
-                            .testTag("region_option_${region.code}")
-                    ) {
-                        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = region.code,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = if (isSelected) scheme.primary else scheme.onSurface,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                if (isSelected) {
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Icon(
-                                        imageVector = Icons.Filled.CheckCircle,
-                                        contentDescription = null,
-                                        tint = scheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                            Text(
-                                text = region.displayName,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = scheme.onSurface
-                            )
-                            Text(
-                                text = region.city,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = scheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            LiquidGlassSurface(
-                shape = RoundedCornerShape(18.dp),
-                elevated = true,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Profil Jaringan & Waktu (${selectedRegion.code})",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = scheme.primary
-                        )
-                        StatusPillBadge(
-                            text = selectedRegion.currencyCode,
-                            color = glass.verifiedEmerald
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Timezone: ${selectedRegion.timezoneId}  •  Locale: ${selectedRegion.localeTag}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = scheme.onSurface
-                    )
-                    Text(
-                        text = "Carrier: ${selectedRegion.carrierName} (MCC ${selectedRegion.mcc}-${selectedRegion.mnc})",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = scheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Model Perangkat ${selectedPlatform.label}",
-                style = MaterialTheme.typography.titleSmall
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                modelList.forEachIndexed { idx, preset ->
-                    val isSelected = idx == selectedModelIdx
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = if (isSelected) scheme.primaryContainer.copy(alpha = 0.45f) else scheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = BorderStroke(
-                            1.dp,
-                            if (isSelected) scheme.primary else scheme.outline.copy(alpha = 0.4f)
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable { selectedModelIdx = idx }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = preset.displayName,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.SemiBold
+                            Text(
+                                text = mode.badge,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (active) scheme.primary else scheme.onSurfaceVariant
+                            )
+                            if (active) {
+                                Icon(
+                                    imageVector = Icons.Filled.CheckCircle,
+                                    contentDescription = "Dipilih",
+                                    tint = scheme.primary,
+                                    modifier = Modifier.size(16.dp)
                                 )
-                                val osLabel = if (selectedPlatform == DevicePlatform.IOS) {
-                                    "iOS ${preset.androidVersion} (${preset.deviceCode}) • Apple GPU"
-                                } else {
-                                    "Android ${preset.androidVersion} • ${preset.model} • API ${preset.sdkInt} • ${preset.gpuRenderer}"
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = mode.label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = scheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = mode.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            if (!selectedMode.isNative) {
+                // Platform Picker: Android vs iPhone (iOS)
+                Text(
+                    text = "Platform Perangkat Virtual",
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    DevicePlatform.entries.forEach { platform ->
+                        val active = selectedPlatform == platform
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (active) scheme.primary.copy(alpha = 0.16f) else scheme.surfaceVariant.copy(alpha = 0.55f),
+                            border = BorderStroke(
+                                width = if (active) 1.5.dp else 1.dp,
+                                color = if (active) scheme.primary else scheme.outline.copy(alpha = 0.4f)
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable {
+                                    selectedPlatform = platform
+                                    selectedModelIdx = 0
+                                    customLabel = "${app.appName} • ${selectedRegion.code} ${platform.badge}"
+                                }
+                                .testTag("platform_option_${platform.name.lowercase()}")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (platform == DevicePlatform.IOS) Icons.Filled.PhoneIphone else Icons.Filled.PhoneAndroid,
+                                    contentDescription = null,
+                                    tint = if (active) scheme.primary else scheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = platform.label,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = if (active) scheme.primary else scheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Public,
+                        contentDescription = null,
+                        tint = glass.accentTeal,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Negara & Lokasi Virtual Perangkat",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Layanan akan membaca zona waktu, bahasa, geolokasi, dan IP (bila proxy/VPN aktif) sesuai negara pilihan.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(vertical = 2.dp)
+                ) {
+                    items(VirtualRegionCatalog.regions, key = { it.code }) { region ->
+                        val isSelected = region.code == selectedRegion.code
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = if (isSelected) scheme.primary.copy(alpha = 0.16f) else scheme.surfaceVariant.copy(alpha = 0.65f),
+                            border = BorderStroke(
+                                width = if (isSelected) 1.5.dp else 1.dp,
+                                color = if (isSelected) scheme.primary else scheme.outline.copy(alpha = 0.5f)
+                            ),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(18.dp))
+                                .clickable {
+                                    selectedRegion = region
+                                    selectedModelIdx = 0
+                                    customLabel = "${app.appName} • ${region.code} ${selectedPlatform.badge}"
+                                }
+                                .testTag("region_option_${region.code}")
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = region.code,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = if (isSelected) scheme.primary else scheme.onSurface,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    if (isSelected) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Icon(
+                                            imageVector = Icons.Filled.CheckCircle,
+                                            contentDescription = null,
+                                            tint = scheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
                                 }
                                 Text(
-                                    text = osLabel,
+                                    text = region.displayName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = scheme.onSurface
+                                )
+                                Text(
+                                    text = region.city,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = scheme.onSurfaceVariant
                                 )
                             }
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Filled.CheckCircle,
-                                    contentDescription = "Dipilih",
-                                    tint = scheme.primary
-                                )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                LiquidGlassSurface(
+                    shape = RoundedCornerShape(18.dp),
+                    elevated = true,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Profil Jaringan & Waktu (${selectedRegion.code})",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = scheme.primary
+                            )
+                            StatusPillBadge(
+                                text = selectedRegion.currencyCode,
+                                color = glass.verifiedEmerald
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Timezone: ${selectedRegion.timezoneId}  •  Locale: ${selectedRegion.localeTag}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = scheme.onSurface
+                        )
+                        Text(
+                            text = "Carrier: ${selectedRegion.carrierName} (MCC ${selectedRegion.mcc}-${selectedRegion.mnc})",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = scheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Model Perangkat ${selectedPlatform.label}",
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    modelList.forEachIndexed { idx, preset ->
+                        val isSelected = idx == selectedModelIdx
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isSelected) scheme.primaryContainer.copy(alpha = 0.45f) else scheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSelected) scheme.primary else scheme.outline.copy(alpha = 0.4f)
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable { selectedModelIdx = idx }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = preset.displayName,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    val osLabel = if (selectedPlatform == DevicePlatform.IOS) {
+                                        "iOS ${preset.androidVersion} (${preset.deviceCode}) • Apple GPU"
+                                    } else {
+                                        "Android ${preset.androidVersion} • ${preset.model} • API ${preset.sdkInt} • ${preset.gpuRenderer}"
+                                    }
+                                    Text(
+                                        text = osLabel,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = scheme.onSurfaceVariant
+                                    )
+                                }
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Filled.CheckCircle,
+                                        contentDescription = "Dipilih",
+                                        tint = scheme.primary
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-            // Real Proxy & Exit-IP Anti-Detection Section (Critical for WhatsApp / Foreign Numbers)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Filled.VpnLock,
-                    contentDescription = null,
-                    tint = glass.accentTeal,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
+                // Real Proxy & Exit-IP Anti-Detection Section (Critical for WhatsApp / Foreign Numbers)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.VpnLock,
+                        contentDescription = null,
+                        tint = glass.accentTeal,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isWhatsApp) "Penyesuaian Wilayah WhatsApp (Otomatis)" else "Rute Jaringan & Negara",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = if (isWhatsApp) "Penyesuaian Wilayah WhatsApp (Otomatis)" else "Rute Jaringan & Negara",
-                    style = MaterialTheme.typography.titleSmall
+                    text = if (isWhatsApp) {
+                        val iosExtra = if (selectedPlatform == DevicePlatform.IOS) " Tampilan juga disesuaikan ke WhatsApp versi iPhone (iOS)." else ""
+                        "Clonix menyelaraskan zona waktu, bahasa, dan identitas browser ke ${selectedRegion.displayName}. Untuk IP keluar ${selectedRegion.code}, pakai proxy/VPN Anda sendiri lalu verifikasi dengan tombol di bawah.$iosExtra"
+                    } else {
+                        "Zona waktu & bahasa mengikuti ${selectedRegion.code}. IP keluar hanya berubah bila Anda memakai proxy HTTP/SOCKS5 atau VPN."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant
                 )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = if (isWhatsApp) {
-                    val iosExtra = if (selectedPlatform == DevicePlatform.IOS) " Tampilan juga disesuaikan ke WhatsApp versi iPhone (iOS)." else ""
-                    "Clonix menyelaraskan zona waktu, bahasa, dan identitas browser ke ${selectedRegion.displayName}. Untuk IP keluar ${selectedRegion.code}, pakai proxy/VPN Anda sendiri lalu verifikasi dengan tombol di bawah.$iosExtra"
-                } else {
-                    "Zona waktu & bahasa mengikuti ${selectedRegion.code}. IP keluar hanya berubah bila Anda memakai proxy HTTP/SOCKS5 atau VPN."
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = scheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(ProxyType.entries) { type ->
-                    val selected = proxyType == type
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(ProxyType.entries) { type ->
+                        val selected = proxyType == type
+                        Surface(
+                            shape = CircleShape,
+                            color = if (selected) scheme.primary.copy(alpha = 0.16f) else scheme.surfaceVariant.copy(alpha = 0.55f),
+                            border = BorderStroke(1.dp, if (selected) scheme.primary else scheme.outline.copy(alpha = 0.4f)),
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable { proxyType = type }
+                        ) {
+                            Text(
+                                text = type.name,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (selected) scheme.primary else scheme.onSurface,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+                }
+
+                if (proxyType != ProxyType.DIRECT) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = proxyHost,
+                            onValueChange = { proxyHost = it },
+                            label = { Text("Host / IP Proxy") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.weight(2f)
+                        )
+                        OutlinedTextField(
+                            value = proxyPort,
+                            onValueChange = { value -> if (value.all { it.isDigit() } && value.length <= 5) proxyPort = value },
+                            label = { Text("Port") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = proxyUser,
+                            onValueChange = { proxyUser = it },
+                            label = { Text("Username (Opsional)") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = proxyPass,
+                            onValueChange = { proxyPass = it },
+                            label = { Text("Password") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = { onProbeExitIp(currentProxyConfig(), selectedRegion.code) },
+                    shape = CircleShape,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .testTag("check_exit_ip_button")
+                ) {
+                    if (exitIpReport?.isLoading == true) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Memeriksa IP Publik Nyata...")
+                    } else {
+                        Icon(Icons.Filled.NetworkCheck, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Verifikasi IP & Negara Rute Saat Ini")
+                    }
+                }
+
+                if (exitIpReport != null && !exitIpReport.isLoading) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val report = exitIpReport
+                    val badgeColor = when {
+                        report.errorMessage != null -> scheme.error
+                        report.matchesTargetRegion -> glass.verifiedEmerald
+                        else -> glass.warningAmber
+                    }
                     Surface(
-                        shape = CircleShape,
-                        color = if (selected) scheme.primary.copy(alpha = 0.16f) else scheme.surfaceVariant.copy(alpha = 0.55f),
-                        border = BorderStroke(1.dp, if (selected) scheme.primary else scheme.outline.copy(alpha = 0.4f)),
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .clickable { proxyType = type }
+                        shape = RoundedCornerShape(14.dp),
+                        color = badgeColor.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, badgeColor.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            if (report.errorMessage != null) {
+                                Text(
+                                    text = "Gagal verifikasi rute: ${report.errorMessage}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = scheme.error
+                                )
+                            } else {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = if (report.matchesTargetRegion) Icons.Filled.CheckCircle else Icons.Filled.WarningAmber,
+                                        contentDescription = null,
+                                        tint = badgeColor,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "IP Publik: ${report.ipAddress} (${report.countryCode} • ${report.city})",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = badgeColor
+                                    )
+                                }
+                                Text(
+                                    text = "ISP: ${report.isp} • Latensi ${report.latencyMs} ms",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = scheme.onSurfaceVariant
+                                )
+                                if (!report.matchesTargetRegion) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Peringatan: IP keluar berada di ${report.countryCode}, bukan ${selectedRegion.code}. Hubungkan VPN ${selectedRegion.code} atau masukkan Proxy ${selectedRegion.code} agar layanan seperti WhatsApp tidak mendeteksi lokasi asli Anda.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = scheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+            } else {
+                // Native clone: real second installation, honest about what stays the same.
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = glass.verifiedEmerald.copy(alpha = 0.10f),
+                    border = BorderStroke(1.dp, glass.verifiedEmerald.copy(alpha = 0.35f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
                         Text(
-                            text = type.name,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (selected) scheme.primary else scheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                            text = "Klon native lewat profil kerja Android",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = glass.verifiedEmerald
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "• Instance aplikasi asli kedua: proses, storage, akun, notifikasi, dan Android ID profil sendiri.\n" +
+                                "• IMEI, nomor seri, dan Build tetap milik perangkat — Android memblokir pemalsuan itu tanpa root.\n" +
+                                "• Saat pertama dibuka, Android minta persetujuan membuat profil kerja (sekali saja).",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Klon tersimpan di halaman klon, dan tombol Buka menangani pemasangan + peluncuran aplikasinya.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = scheme.onSurfaceVariant
                         )
                     }
                 }
             }
-
-            if (proxyType != ProxyType.DIRECT) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = proxyHost,
-                        onValueChange = { proxyHost = it },
-                        label = { Text("Host / IP Proxy") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.weight(2f)
-                    )
-                    OutlinedTextField(
-                        value = proxyPort,
-                        onValueChange = { value -> if (value.all { it.isDigit() } && value.length <= 5) proxyPort = value },
-                        label = { Text("Port") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = proxyUser,
-                        onValueChange = { proxyUser = it },
-                        label = { Text("Username (Opsional)") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedTextField(
-                        value = proxyPass,
-                        onValueChange = { proxyPass = it },
-                        label = { Text("Password") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-            OutlinedButton(
-                onClick = { onProbeExitIp(currentProxyConfig(), selectedRegion.code) },
-                shape = CircleShape,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-                    .testTag("check_exit_ip_button")
-            ) {
-                if (exitIpReport?.isLoading == true) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Memeriksa IP Publik Nyata...")
-                } else {
-                    Icon(Icons.Filled.NetworkCheck, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Verifikasi IP & Negara Rute Saat Ini")
-                }
-            }
-
-            if (exitIpReport != null && !exitIpReport.isLoading) {
-                Spacer(modifier = Modifier.height(8.dp))
-                val report = exitIpReport
-                val badgeColor = when {
-                    report.errorMessage != null -> scheme.error
-                    report.matchesTargetRegion -> glass.verifiedEmerald
-                    else -> glass.warningAmber
-                }
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = badgeColor.copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, badgeColor.copy(alpha = 0.4f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        if (report.errorMessage != null) {
-                            Text(
-                                text = "Gagal verifikasi rute: ${report.errorMessage}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = scheme.error
-                            )
-                        } else {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = if (report.matchesTargetRegion) Icons.Filled.CheckCircle else Icons.Filled.WarningAmber,
-                                    contentDescription = null,
-                                    tint = badgeColor,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "IP Publik: ${report.ipAddress} (${report.countryCode} • ${report.city})",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = badgeColor
-                                )
-                            }
-                            Text(
-                                text = "ISP: ${report.isp} • Latensi ${report.latencyMs} ms",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = scheme.onSurfaceVariant
-                            )
-                            if (!report.matchesTargetRegion) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Peringatan: IP keluar berada di ${report.countryCode}, bukan ${selectedRegion.code}. Hubungkan VPN ${selectedRegion.code} atau masukkan Proxy ${selectedRegion.code} agar layanan seperti WhatsApp tidak mendeteksi lokasi asli Anda.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = scheme.onSurface
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
 
             // Honest scope: say exactly what this clone changes, and what Android does not
             // allow a normal app to change (IMEI/Build for another app's process).
@@ -596,52 +689,64 @@ fun ConfigureCloneSheet(
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "• Penyimpanan, cookie, dan sesi login terpisah penuh dari aplikasi asli.\n" +
-                            "• Identitas yang dibaca layanan: ${modelList.getOrNull(selectedModelIdx)?.displayName ?: "perangkat baru"}, GPU, resolusi, zona waktu ${selectedRegion.timezoneId}, bahasa ${selectedRegion.localeTag}, dan geolokasi ${selectedRegion.city}.\n" +
-                            "• IP keluar mengikuti proxy/VPN Anda — verifikasi dulu di tombol atas.",
+                        text = if (selectedMode.isNative) {
+                            "• Instance aplikasi asli kedua di profil kerja: storage, akun, notifikasi, dan Android ID profil sendiri.\n" +
+                                "• IMEI, serial, dan Build tetap milik perangkat.\n" +
+                                "• Peluncuran dilakukan dari halaman klon Clonix setelah profil kerja disetujui."
+                        } else {
+                            "• Penyimpanan, cookie, dan sesi login terpisah penuh dari aplikasi asli.\n" +
+                                "• Identitas yang dibaca layanan: ${modelList.getOrNull(selectedModelIdx)?.displayName ?: "perangkat baru"}, GPU, resolusi, zona waktu ${selectedRegion.timezoneId}, bahasa ${selectedRegion.localeTag}, dan geolokasi ${selectedRegion.city}.\n" +
+                                "• IP keluar mengikuti proxy/VPN Anda — verifikasi dulu di tombol atas."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Batasan jujur: tanpa root, Android tidak mengizinkan aplikasi memalsukan IMEI atau Build perangkat untuk proses aplikasi lain. Karena itu klon berjalan di kontainer terisolasi Clonix, dan yang bisa dibaca layanan adalah identitas web + IP di atas.",
+                        text = if (selectedMode.isNative) {
+                            "Batasan jujur: Android tidak mengizinkan aplikasi memalsukan IMEI/Build untuk proses aplikasi lain tanpa root. Yang benar-benar baru di mode native adalah user profil, storage, akun, dan ID profilnya."
+                        } else {
+                            "Batasan jujur: tanpa root, Android tidak mengizinkan aplikasi memalsukan IMEI atau Build perangkat untuk proses aplikasi lain. Karena itu klon berjalan di kontainer terisolasi Clonix, dan yang bisa dibaca layanan adalah identitas web + IP di atas."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.onSurfaceVariant
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-            OutlinedTextField(
-                value = portalUrl,
-                onValueChange = { portalUrl = it },
-                label = { Text("Alamat Portal Aplikasi") },
-                singleLine = true,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Tampilan Desktop / WhatsApp Web",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "Disarankan untuk menautkan akun di web.whatsapp.com.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.onSurfaceVariant
+            if (!selectedMode.isNative) {
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = portalUrl,
+                    onValueChange = { portalUrl = it },
+                    label = { Text("Alamat Portal Aplikasi") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Tampilan Desktop / WhatsApp Web",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Disarankan untuk menautkan akun di web.whatsapp.com.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = preferDesktopWeb,
+                        onCheckedChange = { preferDesktopWeb = it }
                     )
                 }
-                Switch(
-                    checked = preferDesktopWeb,
-                    onCheckedChange = { preferDesktopWeb = it }
-                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -662,7 +767,11 @@ fun ConfigureCloneSheet(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Data login, profil perangkat ${selectedPlatform.label}, dan riwayat sesi Anda dienkripsi penuh di perangkat.",
+                    text = if (selectedMode.isNative) {
+                        "Klon tersimpan di perangkat ini. Profil kerja dipakai untuk instance aplikasi asli yang terpisah."
+                    } else {
+                        "Data login, profil perangkat ${selectedPlatform.label}, dan riwayat sesi Anda dienkripsi penuh di perangkat."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurface
                 )
@@ -677,7 +786,7 @@ fun ConfigureCloneSheet(
                         selectedPlatform,
                         customLabel,
                         selectedModelIdx,
-                        LaunchMode.ISOLATED_CONTAINER,
+                        selectedMode,
                         portalUrl,
                         currentProxyConfig(),
                         preferDesktopWeb
@@ -700,7 +809,11 @@ fun ConfigureCloneSheet(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Kloning ${selectedPlatform.badge} (${selectedRegion.code})",
+                    text = if (selectedMode.isNative) {
+                        "Kloning Native (Profil Kerja)"
+                    } else {
+                        "Kloning ${selectedPlatform.badge} (${selectedRegion.code})"
+                    },
                     style = MaterialTheme.typography.labelLarge
                 )
             }

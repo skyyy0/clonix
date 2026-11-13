@@ -55,7 +55,8 @@ class ClonixRepository(
         preferDesktopWeb: Boolean
     ): Flow<ProvisioningUiState> = flow {
         val logs = mutableListOf<String>()
-        val totalSteps = 6
+        val isNativeClone = launchMode.isNative
+        val totalSteps = if (isNativeClone) 4 else 6
 
         fun emitStep(stepIndex: Int, title: String, detail: String, logLine: String): ProvisioningUiState.Running {
             logs.add(logLine)
@@ -80,7 +81,11 @@ class ClonixRepository(
                 emitStep(
                     stepIndex = 1,
                     title = "Mempersiapkan Ruang ${app.appName}",
-                    detail = "Memisahkan penyimpanan dan memutus tautan dengan perangkat asli Anda.",
+                    detail = if (launchMode.isNative) {
+                        "Menyiapkan profil kerja terpisah untuk ${app.appName}."
+                    } else {
+                        "Memisahkan penyimpanan dan memutus tautan dengan perangkat asli Anda."
+                    },
                     logLine = "Menyiapkan profil ${app.appName} (v${app.versionName})"
                 )
             )
@@ -110,175 +115,277 @@ class ClonixRepository(
             val keystoreReady = cryptoManager.isHardwareKeystoreReady()
             delay(380)
 
-            // Stage 3: Synthesize a coherent, unlinkable device identity
-            val iosSuffix = if (isWhatsApp && platform == DevicePlatform.IOS) " • Edisi iOS" else ""
-            emit(
-                emitStep(
-                    stepIndex = 3,
-                    title = "Membentuk Perangkat Baru (${platform.label}$iosSuffix)",
-                    detail = "Menyusun identitas baru: model, GPU, resolusi, zona waktu, bahasa, dan operator ${region.carrierName} yang saling konsisten.",
-                    logLine = "Identitas baru disetel: ${platform.label} (${region.code})"
+            if (isNativeClone) {
+                // Native clone: a real second installation inside an Android work profile.
+                // Only per-profile values really change (storage, accounts, ANDROID_ID,
+                // advertising ID). Hardware identity stays the device's own, and the UI
+                // says so instead of pretending otherwise.
+                emit(
+                    emitStep(
+                        stepIndex = 3,
+                        title = "Menyiapkan Instance Profil Kerja",
+                        detail = "${app.appName} akan dipasang di profil kerja terpisah dengan storage, akun, dan Android ID profil sendiri.",
+                        logLine = "Mode native: profil kerja (persetujuan Android diminta sekali saat pertama dibuka)"
+                    )
                 )
-            )
-            val virtualProfile = cryptoManager.synthesizeVirtualIdentity(
-                region = region,
-                hostBaseline = hostBaseline,
-                platform = platform,
-                preferredModelIndex = preferredModelIndex
-            )
-            val fpHash = cryptoManager.sha256Hex(virtualProfile.buildFingerprint).take(16).uppercase()
-            delay(440)
-
-            // Stage 4: Regional routing. The public exit IP is the signal a server actually
-            // trusts for "where is this device", so verify the user's own proxy/VPN route and
-            // report it honestly instead of gambling on free public relays.
-            val effectiveProxy = proxyConfig
-            emit(
-                emitStep(
-                    stepIndex = 4,
-                    title = "Menyelaraskan Wilayah & Jaringan ${region.code}",
-                    detail = if (effectiveProxy.isConfigured) {
-                        "Memverifikasi IP keluar lewat proxy ${effectiveProxy.summary()}."
-                    } else {
-                        "Menyelaraskan zona waktu ${region.timezoneId}, bahasa ${region.localeTag}, lokasi, lalu memeriksa IP keluar."
-                    },
-                    logLine = "Mengkalibrasi zona waktu ${region.timezoneId} & lokasi ${region.city}"
+                val nativeId = "profil-kerja-${cloneId.take(8)}"
+                val nativeMarker = cryptoManager.serializeNativeProfileMarker(app.packageName, hostBaseline)
+                val profileWrite = cryptoManager.encryptToVault(
+                    cloneId,
+                    "profile",
+                    nativeMarker.toByteArray(Charsets.UTF_8)
                 )
-            )
-            val exitReport = networkRoutingEngine.probeExitIp(
-                effectiveProxy.takeIf { it.isConfigured },
-                region.code
-            )
-            val routeSummary = when {
-                effectiveProxy.isConfigured && exitReport.matchesTargetRegion ->
-                    "Proxy ${effectiveProxy.summary()} • IP ${exitReport.countryCode}"
-                effectiveProxy.isConfigured ->
-                    "Proxy ${effectiveProxy.summary()} • IP ${exitReport.countryCode.ifBlank { "tidak diketahui" }} (belum ${region.code})"
-                exitReport.matchesTargetRegion ->
-                    "IP publik ${exitReport.countryCode} sudah sesuai ${region.code}"
-                else ->
-                    "IP publik ${exitReport.countryCode.ifBlank { "tidak diketahui" }} (bukan ${region.code})"
-            }
+                delay(320)
 
-            val partitionResult = cryptoManager.provisionNativeSandboxPartition(
-                cloneId = cloneId,
-                packageName = app.packageName,
-                sourceApkPath = appInfo?.sourceDir,
-                profile = virtualProfile,
-                region = region
-            )
-            delay(360)
-
-            // Stage 5: Encrypt Virtual Profile, Proxy Credentials & Empty Cookie Vault
-            val proxyLabel = if (effectiveProxy.isConfigured) effectiveProxy.summary() else "tanpa proxy"
-            emit(
-                emitStep(
-                    stepIndex = 5,
-                    title = "Menyegel Profil & Rute Jaringan",
-                    detail = "Menyimpan profil ${virtualProfile.model} ke brankas terenkripsi. Rute: $routeSummary.",
-                    logLine = "Profil ${virtualProfile.model} & rute $proxyLabel tersimpan aman"
+                val nativeInstanceNumber = dao.countInstancesForPackage(app.packageName) + 1
+                val nativeLabel = customLabel.trim().ifBlank {
+                    "${app.appName} • Profil Kerja #$nativeInstanceNumber"
+                }
+                emit(
+                    emitStep(
+                        stepIndex = 4,
+                        title = "Menyimpan Klon",
+                        detail = "Klon tersimpan di halaman klon Clonix. Tombol Buka akan menyiapkan profil kerja sekali, lalu langsung membuka aplikasinya.",
+                        logLine = "Klon native siap dibuka dari daftar klon"
+                    )
                 )
-            )
-            val profileJson = cryptoManager.serializeProfileToJson(virtualProfile)
-            val profileWrite = cryptoManager.encryptToVault(cloneId, "profile", profileJson.toByteArray(Charsets.UTF_8))
-            val cookieWrite = cryptoManager.encryptToVault(cloneId, "cookies", "".toByteArray(Charsets.UTF_8))
-            val proxyWrite = cryptoManager.saveEncryptedProxy(cloneId, effectiveProxy)
-            val totalVaultBytes = profileWrite.sizeBytes + cookieWrite.sizeBytes + proxyWrite.sizeBytes + partitionResult.partitionSizeBytes
-            delay(360)
 
-            // Stage 6: Persist locally & optionally sync to Cloud Firestore (if signed in)
-            val syncMessage = if (cloudRepository != null) {
-                "Menyimpan aplikasi kloning dan menyinkronkan cadangan cloud."
-            } else {
-                "Menyimpan ruang kloning terenkripsi penuh di perangkat."
-            }
-            emit(
-                emitStep(
-                    stepIndex = 6,
-                    title = "Menyelesaikan Pemasangan",
-                    detail = syncMessage,
-                    logLine = "Siap dijalankan terpisah sebagai ${app.appName} by Clonix"
-                )
-            )
-
-            val existingCount = dao.countInstancesForPackage(app.packageName)
-            val instanceNumber = existingCount + 1
-            val finalLabel = customLabel.trim().ifBlank {
-                "${app.appName} • ${region.code} ${platform.badge} #$instanceNumber"
-            }
-            val cleanUrl = customPortalUrl.trim().ifBlank { app.defaultWebPortalUrl }
-
-            val entity = ClonedAppEntity(
-                id = cloneId,
-                packageName = app.packageName,
-                originalAppName = app.appName,
-                cloneLabel = finalLabel,
-                instanceNumber = instanceNumber,
-                devicePlatform = platform.name,
-                regionCode = region.code,
-                regionName = region.displayName,
-                city = region.city,
-                timezoneId = region.timezoneId,
-                localeTag = region.localeTag,
-                carrierName = region.carrierName,
-                mccMnc = virtualProfile.mccMnc,
-                virtualModel = virtualProfile.model,
-                virtualManufacturer = virtualProfile.manufacturer,
-                virtualAndroidId = virtualProfile.virtualAndroidId,
-                virtualSerial = virtualProfile.serialNumber,
-                virtualFingerprint = virtualProfile.buildFingerprint,
-                virtualFingerprintHash = fpHash,
-                virtualMacAddress = virtualProfile.macAddress,
-                virtualAdvertisingId = virtualProfile.advertisingId,
-                virtualImei = virtualProfile.virtualImei,
-                virtualImsi = virtualProfile.virtualImsi,
-                virtualGsfId = virtualProfile.virtualGsfId,
-                virtualWidevineId = virtualProfile.virtualWidevineId,
-                apkDigestSha256 = partitionResult.apkDigestSha256,
-                sandboxContainerPath = partitionResult.containerPath,
-                encryptedVaultPath = profileWrite.filePath,
-                sandboxSizeBytes = totalVaultBytes,
-                launchMode = launchMode.name,
-                targetWebUrl = cleanUrl,
-                proxyEnabled = effectiveProxy.isConfigured,
-                proxyType = effectiveProxy.type.name,
-                proxyHost = effectiveProxy.host.trim(),
-                proxyPort = if (effectiveProxy.isConfigured) effectiveProxy.port else 0,
-                preferDesktopWeb = preferDesktopWeb,
-                isEncrypted = keystoreReady,
-                isAntiDetectActive = true,
-                isLocked = false,
-                createdAt = System.currentTimeMillis(),
-                lastLaunchedAt = null
-            )
-
-            dao.insertClone(entity)
-            val auditTitle = "Kloning Dibuat: $finalLabel"
-            val auditDetail = "${platform.label} ${virtualProfile.model} | Negara ${region.code} | $routeSummary"
-            dao.insertAuditLog(
-                SandboxAuditLogEntity(
-                    cloneId = cloneId,
-                    eventType = "PROVISION",
-                    title = auditTitle,
-                    detail = auditDetail
-                )
-            )
-
-            cloudRepository?.syncCloneToCloud(entity)
-            cloudRepository?.pushAuditLog(cloneId, "PROVISION", auditTitle, auditDetail)
-
-            delay(280)
-
-            emit(
-                ProvisioningUiState.Success(
-                    cloneId = cloneId,
-                    cloneLabel = finalLabel,
+                val entity = ClonedAppEntity(
+                    id = cloneId,
+                    packageName = app.packageName,
+                    originalAppName = app.appName,
+                    cloneLabel = nativeLabel,
+                    instanceNumber = nativeInstanceNumber,
+                    devicePlatform = DevicePlatform.ANDROID.name,
                     regionCode = region.code,
-                    platform = platform,
-                    virtualModel = virtualProfile.model,
-                    virtualAndroidId = virtualProfile.virtualAndroidId
+                    regionName = region.displayName,
+                    city = region.city,
+                    timezoneId = region.timezoneId,
+                    localeTag = region.localeTag,
+                    carrierName = region.carrierName,
+                    mccMnc = "${region.mcc}-${region.mnc}",
+                    virtualModel = hostBaseline.model,
+                    virtualManufacturer = hostBaseline.manufacturer,
+                    virtualAndroidId = nativeId,
+                    virtualSerial = "mengikuti perangkat",
+                    virtualFingerprint = hostBaseline.fingerprint,
+                    virtualFingerprintHash = cryptoManager.sha256Hex(hostBaseline.fingerprint).take(16).uppercase(),
+                    virtualMacAddress = "mengikuti perangkat",
+                    virtualAdvertisingId = "per profil kerja",
+                    apkDigestSha256 = "",
+                    sandboxContainerPath = "",
+                    encryptedVaultPath = profileWrite.filePath,
+                    sandboxSizeBytes = profileWrite.sizeBytes,
+                    launchMode = LaunchMode.WORK_PROFILE.name,
+                    targetWebUrl = "",
+                    proxyEnabled = proxyConfig.isConfigured,
+                    proxyType = proxyConfig.type.name,
+                    proxyHost = proxyConfig.host.trim(),
+                    proxyPort = if (proxyConfig.isConfigured) proxyConfig.port else 0,
+                    preferDesktopWeb = false,
+                    isEncrypted = keystoreReady,
+                    isAntiDetectActive = false,
+                    isLocked = false,
+                    createdAt = System.currentTimeMillis(),
+                    lastLaunchedAt = null
                 )
-            )
+
+                dao.insertClone(entity)
+                val auditTitle = "Klon Native Dibuat: $nativeLabel"
+                val auditDetail = "Profil kerja | Android ID & akun terpisah | IMEI/Build mengikuti perangkat"
+                dao.insertAuditLog(
+                    SandboxAuditLogEntity(
+                        cloneId = cloneId,
+                        eventType = "PROVISION_NATIVE",
+                        title = auditTitle,
+                        detail = auditDetail
+                    )
+                )
+                cloudRepository?.syncCloneToCloud(entity)
+                cloudRepository?.pushAuditLog(cloneId, "PROVISION_NATIVE", auditTitle, auditDetail)
+                delay(240)
+
+                emit(
+                    ProvisioningUiState.Success(
+                        cloneId = cloneId,
+                        cloneLabel = nativeLabel,
+                        regionCode = region.code,
+                        platform = DevicePlatform.ANDROID,
+                        virtualModel = hostBaseline.model,
+                        virtualAndroidId = nativeId
+                    )
+                )
+            } else {
+                // Stage 3: Synthesize a coherent, unlinkable device identity
+                val iosSuffix = if (isWhatsApp && platform == DevicePlatform.IOS) " • Edisi iOS" else ""
+                emit(
+                    emitStep(
+                        stepIndex = 3,
+                        title = "Membentuk Perangkat Baru (${platform.label}$iosSuffix)",
+                        detail = "Menyusun identitas baru: model, GPU, resolusi, zona waktu, bahasa, dan operator ${region.carrierName} yang saling konsisten.",
+                        logLine = "Identitas baru disetel: ${platform.label} (${region.code})"
+                    )
+                )
+                val virtualProfile = cryptoManager.synthesizeVirtualIdentity(
+                    region = region,
+                    hostBaseline = hostBaseline,
+                    platform = platform,
+                    preferredModelIndex = preferredModelIndex
+                )
+                val fpHash = cryptoManager.sha256Hex(virtualProfile.buildFingerprint).take(16).uppercase()
+                delay(440)
+
+                // Stage 4: Regional routing. The public exit IP is the signal a server actually
+                // trusts for "where is this device", so verify the user's own proxy/VPN route and
+                // report it honestly instead of gambling on free public relays.
+                val effectiveProxy = proxyConfig
+                emit(
+                    emitStep(
+                        stepIndex = 4,
+                        title = "Menyelaraskan Wilayah & Jaringan ${region.code}",
+                        detail = if (effectiveProxy.isConfigured) {
+                            "Memverifikasi IP keluar lewat proxy ${effectiveProxy.summary()}."
+                        } else {
+                            "Menyelaraskan zona waktu ${region.timezoneId}, bahasa ${region.localeTag}, lokasi, lalu memeriksa IP keluar."
+                        },
+                        logLine = "Mengkalibrasi zona waktu ${region.timezoneId} & lokasi ${region.city}"
+                    )
+                )
+                val exitReport = networkRoutingEngine.probeExitIp(
+                    effectiveProxy.takeIf { it.isConfigured },
+                    region.code
+                )
+                val routeSummary = when {
+                    effectiveProxy.isConfigured && exitReport.matchesTargetRegion ->
+                        "Proxy ${effectiveProxy.summary()} • IP ${exitReport.countryCode}"
+                    effectiveProxy.isConfigured ->
+                        "Proxy ${effectiveProxy.summary()} • IP ${exitReport.countryCode.ifBlank { "tidak diketahui" }} (belum ${region.code})"
+                    exitReport.matchesTargetRegion ->
+                        "IP publik ${exitReport.countryCode} sudah sesuai ${region.code}"
+                    else ->
+                        "IP publik ${exitReport.countryCode.ifBlank { "tidak diketahui" }} (bukan ${region.code})"
+                }
+
+                val partitionResult = cryptoManager.provisionNativeSandboxPartition(
+                    cloneId = cloneId,
+                    packageName = app.packageName,
+                    sourceApkPath = appInfo?.sourceDir,
+                    profile = virtualProfile,
+                    region = region
+                )
+                delay(360)
+
+                // Stage 5: Encrypt Virtual Profile, Proxy Credentials & Empty Cookie Vault
+                val proxyLabel = if (effectiveProxy.isConfigured) effectiveProxy.summary() else "tanpa proxy"
+                emit(
+                    emitStep(
+                        stepIndex = 5,
+                        title = "Menyegel Profil & Rute Jaringan",
+                        detail = "Menyimpan profil ${virtualProfile.model} ke brankas terenkripsi. Rute: $routeSummary.",
+                        logLine = "Profil ${virtualProfile.model} & rute $proxyLabel tersimpan aman"
+                    )
+                )
+                val profileJson = cryptoManager.serializeProfileToJson(virtualProfile)
+                val profileWrite = cryptoManager.encryptToVault(cloneId, "profile", profileJson.toByteArray(Charsets.UTF_8))
+                val cookieWrite = cryptoManager.encryptToVault(cloneId, "cookies", "".toByteArray(Charsets.UTF_8))
+                val proxyWrite = cryptoManager.saveEncryptedProxy(cloneId, effectiveProxy)
+                val totalVaultBytes = profileWrite.sizeBytes + cookieWrite.sizeBytes + proxyWrite.sizeBytes + partitionResult.partitionSizeBytes
+                delay(360)
+
+                // Stage 6: Persist locally & optionally sync to Cloud Firestore (if signed in)
+                val syncMessage = if (cloudRepository != null) {
+                    "Menyimpan aplikasi kloning dan menyinkronkan cadangan cloud."
+                } else {
+                    "Menyimpan ruang kloning terenkripsi penuh di perangkat."
+                }
+                emit(
+                    emitStep(
+                        stepIndex = 6,
+                        title = "Menyelesaikan Pemasangan",
+                        detail = syncMessage,
+                        logLine = "Siap dijalankan terpisah sebagai ${app.appName} by Clonix"
+                    )
+                )
+
+                val existingCount = dao.countInstancesForPackage(app.packageName)
+                val instanceNumber = existingCount + 1
+                val finalLabel = customLabel.trim().ifBlank {
+                    "${app.appName} • ${region.code} ${platform.badge} #$instanceNumber"
+                }
+                val cleanUrl = customPortalUrl.trim().ifBlank { app.defaultWebPortalUrl }
+
+                val entity = ClonedAppEntity(
+                    id = cloneId,
+                    packageName = app.packageName,
+                    originalAppName = app.appName,
+                    cloneLabel = finalLabel,
+                    instanceNumber = instanceNumber,
+                    devicePlatform = platform.name,
+                    regionCode = region.code,
+                    regionName = region.displayName,
+                    city = region.city,
+                    timezoneId = region.timezoneId,
+                    localeTag = region.localeTag,
+                    carrierName = region.carrierName,
+                    mccMnc = virtualProfile.mccMnc,
+                    virtualModel = virtualProfile.model,
+                    virtualManufacturer = virtualProfile.manufacturer,
+                    virtualAndroidId = virtualProfile.virtualAndroidId,
+                    virtualSerial = virtualProfile.serialNumber,
+                    virtualFingerprint = virtualProfile.buildFingerprint,
+                    virtualFingerprintHash = fpHash,
+                    virtualMacAddress = virtualProfile.macAddress,
+                    virtualAdvertisingId = virtualProfile.advertisingId,
+                    virtualImei = virtualProfile.virtualImei,
+                    virtualImsi = virtualProfile.virtualImsi,
+                    virtualGsfId = virtualProfile.virtualGsfId,
+                    virtualWidevineId = virtualProfile.virtualWidevineId,
+                    apkDigestSha256 = partitionResult.apkDigestSha256,
+                    sandboxContainerPath = partitionResult.containerPath,
+                    encryptedVaultPath = profileWrite.filePath,
+                    sandboxSizeBytes = totalVaultBytes,
+                    launchMode = launchMode.name,
+                    targetWebUrl = cleanUrl,
+                    proxyEnabled = effectiveProxy.isConfigured,
+                    proxyType = effectiveProxy.type.name,
+                    proxyHost = effectiveProxy.host.trim(),
+                    proxyPort = if (effectiveProxy.isConfigured) effectiveProxy.port else 0,
+                    preferDesktopWeb = preferDesktopWeb,
+                    isEncrypted = keystoreReady,
+                    isAntiDetectActive = true,
+                    isLocked = false,
+                    createdAt = System.currentTimeMillis(),
+                    lastLaunchedAt = null
+                )
+
+                dao.insertClone(entity)
+                val auditTitle = "Kloning Dibuat: $finalLabel"
+                val auditDetail = "${platform.label} ${virtualProfile.model} | Negara ${region.code} | $routeSummary"
+                dao.insertAuditLog(
+                    SandboxAuditLogEntity(
+                        cloneId = cloneId,
+                        eventType = "PROVISION",
+                        title = auditTitle,
+                        detail = auditDetail
+                    )
+                )
+
+                cloudRepository?.syncCloneToCloud(entity)
+                cloudRepository?.pushAuditLog(cloneId, "PROVISION", auditTitle, auditDetail)
+
+                delay(280)
+
+                emit(
+                    ProvisioningUiState.Success(
+                        cloneId = cloneId,
+                        cloneLabel = finalLabel,
+                        regionCode = region.code,
+                        platform = platform,
+                        virtualModel = virtualProfile.model,
+                        virtualAndroidId = virtualProfile.virtualAndroidId
+                    )
+                )
+            }
         } catch (t: Throwable) {
             emit(ProvisioningUiState.Error(t.message ?: "Gagal mengonfigurasi kontainer virtual"))
         }
@@ -412,6 +519,9 @@ class ClonixRepository(
         newPlatform: DevicePlatform? = null
     ): ClonedAppEntity? = withContext(Dispatchers.IO) {
         val current = dao.getCloneById(cloneId) ?: return@withContext null
+        // Native clones have no web identity to rotate: their separation comes from the work
+        // profile, and IMEI/Build cannot be changed without root.
+        if (LaunchMode.fromStored(current.launchMode).isNative) return@withContext current
         val region = VirtualRegionCatalog.findByCode(newRegionCode ?: current.regionCode)
         val platform = newPlatform ?: runCatching { DevicePlatform.valueOf(current.devicePlatform) }
             .getOrDefault(DevicePlatform.ANDROID)

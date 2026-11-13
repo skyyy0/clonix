@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Clonix only uses the admin to create and own a work profile so clones get a
+         real, separate app instance. No password, camera or wipe policies are used. -->
+    <uses-policies />
+</device-admin>

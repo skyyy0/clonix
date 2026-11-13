@@ -19,4 +19,6 @@
     <string name="cd_app_icon">Ikon aplikasi %1$s</string>
     <string name="cd_vault_shield">Ilustrasi brankas keamanan terenkripsi Clonix</string>
     <string name="cd_empty_sandbox">Ilustrasi kontainer ganda kosong Clonix</string>
+    <string name="device_admin_label">Clonix Profil Kerja</string>
+    <string name="device_admin_description">Membuat profil kerja terpisah agar klon aplikasi punya storage, akun, dan Android ID sendiri.</string>
 </resources>

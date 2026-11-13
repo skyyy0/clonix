@@ -240,6 +240,27 @@ class ExampleRobolectricTest {
     assertTrue(probe.contains("webgl"))
   }
 
+  @Test
+  fun `native profile marker records per-profile identity without faking hardware`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val crypto = VaultCryptoManager(context)
+    val host = HostDeviceBaseline(
+      manufacturer = "Samsung",
+      model = "SM-S938B",
+      androidId = "hostAndroidId1234",
+      fingerprint = "samsung/pa3q/pa3q:15/AP3A/1234:user/release-keys",
+      sdkInt = 35
+    )
+
+    val marker = crypto.serializeNativeProfileMarker("com.whatsapp", host)
+
+    assertTrue(marker.contains("WORK_PROFILE"))
+    assertTrue(marker.contains("com.whatsapp"))
+    assertTrue(marker.contains("per work profile user"))
+    assertTrue(marker.contains(host.model))
+    assertTrue("native marker must not claim a spoofed IMEI", !marker.contains("imei"))
+  }
+
   private fun isValidLuhn(digits: String): Boolean {
     var sum = 0
     for (i in digits.indices) {

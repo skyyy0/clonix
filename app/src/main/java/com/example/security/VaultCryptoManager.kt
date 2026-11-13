@@ -467,6 +467,21 @@ class VaultCryptoManager(private val context: Context) {
         )
     }
 
+    /**
+     * Minimal encrypted record for native (work profile) clones. It documents what the
+     * clone actually is, instead of storing web-identity fields that no native app reads.
+     */
+    fun serializeNativeProfileMarker(packageName: String, host: HostDeviceBaseline): String =
+        JSONObject().apply {
+            put("mode", "WORK_PROFILE")
+            put("packageName", packageName)
+            put("hostManufacturer", host.manufacturer)
+            put("hostModel", host.model)
+            put("hostFingerprint", host.fingerprint)
+            put("androidIdScope", "per work profile user")
+            put("note", "Android ID, akun, dan storage mengikuti profil kerja; IMEI/Build milik perangkat.")
+        }.toString(2)
+
     fun serializeProfileToJson(profile: VirtualDeviceProfile): String {
         return JSONObject().apply {
             put("devicePlatform", profile.devicePlatform.name)

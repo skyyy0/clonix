@@ -94,9 +94,19 @@ class DeviceCatalogTest {
     }
 
     @Test
-    fun `legacy launch modes map to the isolated container`() {
+    fun `launch modes survive storage and legacy values fall back safely`() {
         assertEquals(LaunchMode.ISOLATED_CONTAINER, LaunchMode.fromStored("NATIVE_BRIDGE"))
         assertEquals(LaunchMode.ISOLATED_CONTAINER, LaunchMode.fromStored(null))
-        assertEquals(1, LaunchMode.entries.size)
+        assertEquals(LaunchMode.ISOLATED_CONTAINER, LaunchMode.fromStored("ISOLATED_CONTAINER"))
+        assertEquals(LaunchMode.WORK_PROFILE, LaunchMode.fromStored("WORK_PROFILE"))
+        assertEquals(2, LaunchMode.entries.size)
+    }
+
+    @Test
+    fun `only work profile mode is native`() {
+        assertTrue(LaunchMode.WORK_PROFILE.isNative)
+        assertTrue(!LaunchMode.ISOLATED_CONTAINER.isNative)
+        assertTrue(LaunchMode.WORK_PROFILE.description.contains("IMEI"))
+        assertTrue(LaunchMode.WORK_PROFILE.badge == "NATIVE")
     }
 }
