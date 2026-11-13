@@ -45,11 +45,46 @@ jobs:
             -alias upload -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=Clonix CI,O=Clonix,C=ID"
 
-      - name: Unit tests
+      # No real Firebase config lives in git. CI writes a placeholder so the
+      # google-services plugin can generate R.string.default_web_client_id and the
+      # app still compiles. The artifact is for verification, not for publishing.
+      - name: Provide placeholder Firebase config
+        run: |
+          cat > app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "clonix-ci",
+              "storage_bucket": "clonix-ci.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+                  "android_client_info": { "package_name": "com.aistudio.clonix.skyxqr" }
+                },
+                "oauth_client": [
+                  { "client_id": "000000000000-ci.apps.googleusercontent.com", "client_type": 3 }
+                ],
+                "api_key": [ { "current_key": "AIzaSyCI0placeholder0key000000000000000" } ],
+                "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+
+      # ClonixCloudRepositoryRuleTest talks to the Firebase emulators, so they run around
+      # the unit test task instead of being skipped.
+      - name: Unit tests (with Firebase emulators)
         env:
           STORE_PASSWORD: ci-upload-pass
           KEY_PASSWORD: ci-upload-pass
-        run: gradle --no-daemon testDebugUnitTest
+        run: |
+          npx --yes firebase-tools@13 emulators:exec \
+            --only firestore,auth \
+            --project demo-no-project \
+            "gradle --no-daemon testDebugUnitTest"
 
       - name: Assemble debug APK
         env:
