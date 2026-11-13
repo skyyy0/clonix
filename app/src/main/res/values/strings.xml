@@ -1,0 +1,22 @@
+<resources>
+    <string name="app_name">Clonix</string>
+    <string name="developer_credit">Dikembangkan oleh sky</string>
+    <string name="nav_workspace">Ruang</string>
+    <string name="nav_apps">Aplikasi</string>
+    <string name="nav_vault">Brankas</string>
+    <string name="workspace_subtitle">Jalankan banyak akun terpisah dengan privasi penuh</string>
+    <string name="clone_action_fab">Kloning Baru</string>
+    <string name="empty_workspace_title">Belum Ada Aplikasi Kloning</string>
+    <string name="empty_workspace_desc">Pilih aplikasi dari perangkat Anda, atur perangkat virtual &amp; negara tujuan, lalu jalankan akun terpisah langsung dari Clonix.</string>
+    <string name="empty_workspace_cta">Pilih Aplikasi</string>
+    <string name="vault_title">Privasi &amp; Keamanan</string>
+    <string name="vault_subtitle">Pengaturan akun, tampilan, dan perlindungan perangkat</string>
+    <string name="catalog_title">Pilih Aplikasi</string>
+    <string name="catalog_subtitle">Pilih aplikasi untuk digandakan beserta negara virtual</string>
+    <string name="search_apps_hint">Cari aplikasi di perangkat...</string>
+    <string name="pin_lock_title">Kunci Aplikasi Clonix</string>
+    <string name="pin_lock_subtitle">Masukkan PIN 4 digit untuk membuka Clonix</string>
+    <string name="cd_app_icon">Ikon aplikasi %1$s</string>
+    <string name="cd_vault_shield">Ilustrasi brankas keamanan terenkripsi Clonix</string>
+    <string name="cd_empty_sandbox">Ilustrasi kontainer ganda kosong Clonix</string>
+</resources>

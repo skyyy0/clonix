@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "UserVaultProfile": {
+      "title": "UserVaultProfile",
+      "description": "User-scoped Clonix cloud sync profile and global preferences.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "defaultRegionCode": { "type": "string" },
+        "strictAntiDetect": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp via FieldValue.serverTimestamp()" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp via FieldValue.serverTimestamp()" }
+      },
+      "required": ["userId", "displayName", "defaultRegionCode", "strictAntiDetect", "createdAt", "updatedAt"]
+    },
+    "CloudCloneRecord": {
+      "title": "CloudCloneRecord",
+      "description": "Synced isolated clone metadata and non-secret virtual device identity profile.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "packageName": { "type": "string" },
+        "originalAppName": { "type": "string" },
+        "cloneLabel": { "type": "string" },
+        "instanceNumber": { "type": "integer" },
+        "devicePlatform": { "type": "string", "enum": ["ANDROID", "IOS"] },
+        "regionCode": { "type": "string" },
+        "regionName": { "type": "string" },
+        "city": { "type": "string" },
+        "timezoneId": { "type": "string" },
+        "localeTag": { "type": "string" },
+        "carrierName": { "type": "string" },
+        "mccMnc": { "type": "string" },
+        "virtualModel": { "type": "string" },
+        "virtualManufacturer": { "type": "string" },
+        "virtualAndroidId": { "type": "string" },
+        "virtualFingerprintHash": { "type": "string" },
+        "launchMode": { "type": "string", "enum": ["ISOLATED_CONTAINER", "NATIVE_BRIDGE"] },
+        "targetWebUrl": { "type": "string" },
+        "proxyEnabled": { "type": "boolean" },
+        "proxySummary": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp via FieldValue.serverTimestamp()" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp via FieldValue.serverTimestamp()" }
+      },
+      "required": [
+        "userId", "packageName", "originalAppName", "cloneLabel", "instanceNumber",
+        "devicePlatform", "regionCode", "regionName", "city", "timezoneId",
+        "localeTag", "carrierName", "mccMnc", "virtualModel", "virtualManufacturer",
+        "virtualAndroidId", "virtualFingerprintHash", "launchMode", "targetWebUrl",
+        "proxyEnabled", "proxySummary", "createdAt", "updatedAt"
+      ]
+    },
+    "CloudAuditLog": {
+      "title": "CloudAuditLog",
+      "description": "Append-only security audit log entry for container provisioning and launches.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "cloneId": { "type": "string" },
+        "eventType": { "type": "string" },
+        "title": { "type": "string" },
+        "detail": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp via FieldValue.serverTimestamp()" }
+      },
+      "required": ["userId", "cloneId", "eventType", "title", "detail", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserVaultProfile" },
+      "description": "User root profile document for Clonix cloud sync."
+    },
+    "/users/{userId}/clones/{cloneId}": {
+      "schema": { "$ref": "#/entities/CloudCloneRecord" },
+      "description": "User-owned virtual clone records synced across sessions."
+    },
+    "/users/{userId}/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/CloudAuditLog" },
+      "description": "User-owned append-only security audit trail."
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Clonix",
+  "description": "Clonix by sky — Aplikasi Dual Apps ringan dan terenkripsi penuh untuk menjalankan banyak akun media sosial secara terisolasi dengan profil perangkat virtual dan konfigurasi negara.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
