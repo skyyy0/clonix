@@ -4,23 +4,22 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.pm.CrossProfileApps
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
+import android.content.pm.UserInfo
 import android.os.Build
 import android.os.UserHandle
 import android.os.UserManager
-import com.example.runtime.CloneLauncherActivity
 
 /** Outcome of trying to open a clone that lives in the work profile. */
 sealed interface NativeLaunchResult {
-    /** The app was opened in the work profile. */
+    /** The launch request was handed to Android successfully. */
     data object Launched : NativeLaunchResult
 
     /** No work profile exists yet; the user has to approve provisioning. */
     data object NeedsProfile : NativeLaunchResult
 
-    /** The app is not installed in the work profile yet (or Android blocked the launch). */
+    /** The app is not installed in the work profile yet, or Android blocked the launch. */
     data class NeedsInstall(val message: String) : NativeLaunchResult
 
     /** The device or platform cannot host a work profile at all. */
@@ -36,6 +35,12 @@ sealed interface NativeLaunchResult {
  *
  * What it cannot do: change IMEI, serial or `Build.*`, because those are hardware/kernel
  * properties and no normal app may rewrite them for another app's process.
+ *
+ * Launching another package inside the work profile is also restricted by Android:
+ * `CrossProfileApps`/`LauncherApps` cross-profile access needs a permission a profile
+ * owner cannot request for itself. So Clonix asks Android for the launch, and when the
+ * platform refuses it says so and points at the launcher's work tab instead of faking
+ * success.
  */
 class WorkProfileManager(private val context: Context) {
 
@@ -54,7 +59,8 @@ class WorkProfileManager(private val context: Context) {
 
     val profileUser: UserHandle?
         get() = runCatching {
-            userManager?.userProfiles?.firstOrNull { it.isManagedProfile }?.userHandle
+            val profiles: List<UserInfo> = userManager?.getProfiles(UserHandle.myUserId()).orEmpty()
+            profiles.firstOrNull { it.isManagedProfile }?.userHandle
         }.getOrNull()
 
     val hasProfile: Boolean get() = profileUser != null
@@ -74,10 +80,9 @@ class WorkProfileManager(private val context: Context) {
     }
 
     fun isInstalledInProfile(packageName: String): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
         val user = profileUser ?: return false
         val apps = launcherApps ?: return false
-        return runCatching { apps.getApplicationInfo(packageName, 0, user) != null }.getOrDefault(false)
+        return runCatching { apps.getActivityList(packageName, user).isNotEmpty() }.getOrDefault(false)
     }
 
     /**
@@ -93,9 +98,8 @@ class WorkProfileManager(private val context: Context) {
     }
 
     /**
-     * Installs the clone if needed, then tries every bridge Android offers to open it in
-     * the work profile. Each attempt is a real platform call; when all of them are
-     * blocked we return an actionable message instead of a fake success.
+     * Installs the clone if needed, then asks Android to open it in the work profile.
+     * When the platform refuses, the caller gets a message it can show to the user.
      */
     fun ensureAndLaunch(packageName: String, appName: String): NativeLaunchResult {
         if (!isSupported) {
@@ -112,39 +116,23 @@ class WorkProfileManager(private val context: Context) {
             )
         }
 
-        // Bridge 1: LauncherApps. Works when Clonix has cross-profile launcher access.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            runCatching {
-                val info = launcherApps?.getApplicationInfo(packageName, 0, user)
-                val component = info?.componentName
-                if (component != null) {
-                    launcherApps?.startMainActivity(component, user, null, null)
-                    return NativeLaunchResult.Launched
-                }
-            }
-        }
-
-        // Bridge 2: start Clonix's own bridge activity inside the profile, which then opens
-        // the clone locally (Android 11+, no cross-user permission for other packages).
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            runCatching {
-                val crossProfileApps = context.getSystemService(CrossProfileApps::class.java)
-                val bridge = Intent(context, CloneLauncherActivity::class.java).apply {
-                    putExtra(CloneLauncherActivity.EXTRA_TARGET_PACKAGE, packageName)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                crossProfileApps?.startActivity(bridge, user)
-                return NativeLaunchResult.Launched
-            }
+        val apps = launcherApps
+        val mainActivity = context.packageManager.getLaunchIntentForPackage(packageName)?.component
+        if (apps != null && mainActivity != null) {
+            val launched = runCatching {
+                apps.startMainActivity(mainActivity, user, null, null)
+                true
+            }.getOrDefault(false)
+            if (launched) return NativeLaunchResult.Launched
         }
 
         return NativeLaunchResult.NeedsInstall(
-            "Android memblokir peluncuran lintas profil untuk $appName. Buka $appName dari tab " +
-                "Kerja di launcher HP; klonnya tetap tersimpan di Clonix."
+            "Android membatasi peluncuran aplikasi lain dari dalam profil kerja untuk aplikasi biasa. " +
+                "Buka $appName dari tab Kerja di launcher HP — klonnya tetap tersimpan di halaman klon Clonix."
         )
     }
 
-    /** Package-scoped identity note shown in the UI for native clones. */
+    /** Identity note shown in the UI for native clones. */
     fun identityNote(): String = if (hasProfile && isProfileOwner) {
         "Profil kerja aktif: Android ID, akun, dan penyimpanan klon berbeda dari aplikasi asli. " +
             "IMEI, serial, dan Build tetap milik perangkat karena dibatasi Android."

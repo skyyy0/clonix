@@ -56,15 +56,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- Invisible bridge used to open a cloned app inside the work profile. -->
-        <activity
-            android:name=".runtime.CloneLauncherActivity"
-            android:excludeFromRecents="true"
-            android:exported="false"
-            android:noHistory="true"
-            android:taskAffinity=""
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-
         <activity
             android:name=".runtime.CloneRuntimeActivity"
             android:exported="false"
