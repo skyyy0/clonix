@@ -108,7 +108,6 @@ fun ConfigureCloneSheet(
     var customLabel by remember(app, selectedRegion, selectedPlatform) {
         mutableStateOf("${app.appName} • ${selectedRegion.code} ${selectedPlatform.badge}")
     }
-    var selectedMode by remember(app) { mutableStateOf(app.recommendedLaunchMode) }
     var portalUrl by remember(app) { mutableStateOf(app.defaultWebPortalUrl) }
     var preferDesktopWeb by remember(app) { mutableStateOf(isWhatsApp) }
 
@@ -258,7 +257,7 @@ fun ConfigureCloneSheet(
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Aplikasi akan membaca zona waktu, bahasa, geolokasi, & operator seolah berada di negara pilihan.",
+                text = "Layanan akan membaca zona waktu, bahasa, geolokasi, dan IP (bila proxy/VPN aktif) sesuai negara pilihan.",
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.onSurfaceVariant
             )
@@ -385,14 +384,14 @@ fun ConfigureCloneSheet(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "${preset.manufacturer} ${preset.model}",
+                                    text = preset.displayName,
                                     style = MaterialTheme.typography.bodyLarge,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 val osLabel = if (selectedPlatform == DevicePlatform.IOS) {
                                     "iOS ${preset.androidVersion} (${preset.deviceCode}) • Apple GPU"
                                 } else {
-                                    "Android ${preset.androidVersion} (API ${preset.sdkInt}) • ${preset.buildId}"
+                                    "Android ${preset.androidVersion} • ${preset.model} • API ${preset.sdkInt} • ${preset.gpuRenderer}"
                                 }
                                 Text(
                                     text = osLabel,
@@ -431,10 +430,10 @@ fun ConfigureCloneSheet(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = if (isWhatsApp) {
-                    val iosExtra = if (selectedPlatform == DevicePlatform.IOS) " Aplikasi juga disesuaikan ke tampilan WhatsApp versi iPhone (iOS)." else ""
-                    "Clonix otomatis menyelaraskan identitas perangkat, operator SIM, zona waktu, dan mencoba rute jaringan ${selectedRegion.displayName} tanpa perlu menyalakan VPN secara manual.$iosExtra"
+                    val iosExtra = if (selectedPlatform == DevicePlatform.IOS) " Tampilan juga disesuaikan ke WhatsApp versi iPhone (iOS)." else ""
+                    "Clonix menyelaraskan zona waktu, bahasa, dan identitas browser ke ${selectedRegion.displayName}. Untuk IP keluar ${selectedRegion.code}, pakai proxy/VPN Anda sendiri lalu verifikasi dengan tombol di bawah.$iosExtra"
                 } else {
-                    "Secara otomatis menggunakan rute ${selectedRegion.code}, atau masukkan Proxy HTTP/SOCKS5 khusus bila Anda memilikinya."
+                    "Zona waktu & bahasa mengikuti ${selectedRegion.code}. IP keluar hanya berubah bila Anda memakai proxy HTTP/SOCKS5 atau VPN."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.onSurfaceVariant
@@ -581,90 +580,68 @@ fun ConfigureCloneSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                text = "Mode Isolasi Kontainer",
-                style = MaterialTheme.typography.titleSmall
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                LaunchMode.entries.forEach { mode ->
-                    val active = selectedMode == mode
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = if (active) scheme.primary.copy(alpha = 0.16f) else scheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = BorderStroke(1.dp, if (active) scheme.primary else scheme.outline.copy(alpha = 0.4f)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable { selectedMode = mode }
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                text = mode.badge,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (active) scheme.primary else scheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = mode.label,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = scheme.onSurface
-                            )
-                        }
-                    }
+            // Honest scope: say exactly what this clone changes, and what Android does not
+            // allow a normal app to change (IMEI/Build for another app's process).
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = glass.accentTeal.copy(alpha = 0.10f),
+                border = BorderStroke(1.dp, glass.accentTeal.copy(alpha = 0.35f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "Yang benar-benar berubah di klon ini",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = glass.accentTeal
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "• Penyimpanan, cookie, dan sesi login terpisah penuh dari aplikasi asli.\n" +
+                            "• Identitas yang dibaca layanan: ${modelList.getOrNull(selectedModelIdx)?.displayName ?: "perangkat baru"}, GPU, resolusi, zona waktu ${selectedRegion.timezoneId}, bahasa ${selectedRegion.localeTag}, dan geolokasi ${selectedRegion.city}.\n" +
+                            "• IP keluar mengikuti proxy/VPN Anda — verifikasi dulu di tombol atas.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Batasan jujur: tanpa root, Android tidak mengizinkan aplikasi memalsukan IMEI atau Build perangkat untuk proses aplikasi lain. Karena itu klon berjalan di kontainer terisolasi Clonix, dan yang bisa dibaca layanan adalah identitas web + IP di atas.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant
+                    )
                 }
             }
 
-            if (selectedMode == LaunchMode.NATIVE_BRIDGE) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = glass.accentTeal.copy(alpha = 0.10f),
-                    border = BorderStroke(1.dp, glass.accentTeal.copy(alpha = 0.35f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = portalUrl,
+                onValueChange = { portalUrl = it },
+                label = { Text("Alamat Portal Aplikasi") },
+                singleLine = true,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Saat dibuka, ${app.appName} berjalan di jendela terpisah \"${app.appName} by Clonix\" pada Recent Apps dengan identitas perangkat baru 100%, IMEI & SIM baru, serta zona waktu ${selectedRegion.displayName}.",
+                        text = "Tampilan Desktop / WhatsApp Web",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Disarankan untuk menautkan akun di web.whatsapp.com.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = scheme.onSurface,
-                        modifier = Modifier.padding(12.dp)
+                        color = scheme.onSurfaceVariant
                     )
                 }
-            } else {
-                Spacer(modifier = Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = portalUrl,
-                    onValueChange = { portalUrl = it },
-                    label = { Text("Alamat Portal Aplikasi") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth()
+                Switch(
+                    checked = preferDesktopWeb,
+                    onCheckedChange = { preferDesktopWeb = it }
                 )
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Tampilan Desktop / WhatsApp Web",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Disarankan untuk menautkan akun di web.whatsapp.com.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = scheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = preferDesktopWeb,
-                        onCheckedChange = { preferDesktopWeb = it }
-                    )
-                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -700,7 +677,7 @@ fun ConfigureCloneSheet(
                         selectedPlatform,
                         customLabel,
                         selectedModelIdx,
-                        selectedMode,
+                        LaunchMode.ISOLATED_CONTAINER,
                         portalUrl,
                         currentProxyConfig(),
                         preferDesktopWeb

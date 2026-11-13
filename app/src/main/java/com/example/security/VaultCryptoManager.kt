@@ -509,150 +509,24 @@ class VaultCryptoManager(private val context: Context) {
         }.toString(2)
     }
 
+    /**
+     * Single source of truth for the in-page identity layer. The real implementation
+     * lives in [IdentityShield]; this wrapper is kept so existing call sites and tests
+     * keep working.
+     */
     fun buildAntiDetectJsShim(
         profile: VirtualDeviceProfile,
         region: VirtualRegion,
         desktopMode: Boolean = false,
-        isWhatsAppIosMode: Boolean = false
-    ): String {
-        val langShort = region.localeTag.substringBefore("-")
-        val navPlatform = when {
-            desktopMode && profile.devicePlatform == DevicePlatform.IOS -> "MacIntel"
-            desktopMode -> "Win32"
-            else -> profile.navigatorPlatform
-        }
-        val dpr = if (desktopMode) 2 else 3
-        val cssW = if (desktopMode) 1440 else (profile.screenWidth / dpr).coerceIn(375, 440)
-        val cssH = if (desktopMode) 900 else (profile.screenHeight / dpr).coerceIn(812, 956)
-        val touchPts = if (desktopMode) 0 else profile.maxTouchPoints
-        val fpSeed = profile.virtualAndroidId.hashCode() and 0xFF
-        val iosWaCssBlock = if (isWhatsAppIosMode) {
-            """
-            try {
-              var styleId = 'clonix-wa-ios-theme';
-              if (!document.getElementById(styleId) && document.head) {
-                var st = document.createElement('style');
-                st.id = styleId;
-                st.textContent = [
-                  'body, input, button, textarea { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Helvetica, Arial, sans-serif !important; }',
-                  'header, [data-testid="chatlist-header"], [data-testid="conversation-header"] { backdrop-filter: blur(20px) !important; -webkit-backdrop-filter: blur(20px) !important; }',
-                  '.message-out > div { border-radius: 18px 18px 4px 18px !important; }',
-                  '.message-in > div { border-radius: 18px 18px 18px 4px !important; }',
-                  'a, [role="button"][aria-label*="New"], [data-icon="send"] { accent-color: #007AFF !important; }'
-                ].join('\n');
-                document.head.appendChild(st);
-              }
-            } catch (e) {}
-            """.trimIndent()
-        } else {
-            ""
-        }
-
-        return """
-            (function() {
-              try {
-                var def = function(obj, prop, val) {
-                  try { Object.defineProperty(obj, prop, { get: function() { return val; }, configurable: true }); } catch (e) {}
-                };
-                def(navigator, 'language', '${region.localeTag}');
-                def(navigator, 'languages', ['${region.localeTag}', '$langShort']);
-                def(navigator, 'platform', '$navPlatform');
-                def(navigator, 'vendor', '${profile.navigatorVendor}');
-                def(navigator, 'maxTouchPoints', $touchPts);
-                def(navigator, 'hardwareConcurrency', ${if (profile.devicePlatform == DevicePlatform.IOS) 6 else 8});
-                def(navigator, 'deviceMemory', ${if (profile.devicePlatform == DevicePlatform.IOS) 6 else 8});
-                def(navigator, 'webdriver', false);
-                def(window, 'devicePixelRatio', $dpr);
-                def(screen, 'width', $cssW);
-                def(screen, 'height', $cssH);
-                def(screen, 'availWidth', $cssW);
-                def(screen, 'availHeight', $cssH);
-
-                if (navigator.userAgentData) {
-                  def(navigator, 'userAgentData', {
-                    brands: [{ brand: '${if (profile.devicePlatform == DevicePlatform.IOS) "Safari" else "Chromium"}', version: '133' }],
-                    mobile: ${!desktopMode},
-                    platform: '${if (profile.devicePlatform == DevicePlatform.IOS) (if (desktopMode) "macOS" else "iOS") else (if (desktopMode) "Windows" else "Android")}',
-                    getHighEntropyValues: function() {
-                      return Promise.resolve({
-                        model: '${profile.model}',
-                        platformVersion: '${profile.androidVersion}',
-                        architecture: 'arm',
-                        mobile: ${!desktopMode}
-                      });
-                    }
-                  });
-                }
-
-                if (window.Intl && Intl.DateTimeFormat) {
-                  var origResolved = Intl.DateTimeFormat.prototype.resolvedOptions;
-                  Intl.DateTimeFormat.prototype.resolvedOptions = function() {
-                    var res = origResolved.apply(this, arguments);
-                    res.timeZone = '${region.timezoneId}';
-                    res.locale = '${region.localeTag}';
-                    return res;
-                  };
-                }
-                Date.prototype.getTimezoneOffset = function() { return ${region.timezoneOffsetMinutes}; };
-
-                var patchWebGL = function(proto) {
-                  if (!proto || !proto.getParameter) return;
-                  var origGetParam = proto.getParameter;
-                  proto.getParameter = function(param) {
-                    if (param === 37445) return '${profile.webglVendor}';
-                    if (param === 37446) return '${profile.webglRenderer}';
-                    return origGetParam.apply(this, arguments);
-                  };
-                };
-                if (window.WebGLRenderingContext) patchWebGL(WebGLRenderingContext.prototype);
-                if (window.WebGL2RenderingContext) patchWebGL(WebGL2RenderingContext.prototype);
-
-                if (window.HTMLCanvasElement && HTMLCanvasElement.prototype.toDataURL) {
-                  var origToDataURL = HTMLCanvasElement.prototype.toDataURL;
-                  HTMLCanvasElement.prototype.toDataURL = function() {
-                    try {
-                      var ctx = this.getContext && this.getContext('2d');
-                      if (ctx && this.width > 0 && this.height > 0) {
-                        ctx.fillStyle = 'rgba(0,0,0,0.002)';
-                        ctx.fillRect(${fpSeed % 5}, 0, 1, 1);
-                      }
-                    } catch (e) {}
-                    return origToDataURL.apply(this, arguments);
-                  };
-                }
-
-                var noopRtc = function() {
-                  throw new DOMException('WebRTC ICE blocked by Clonix privacy shield', 'SecurityError');
-                };
-                if (window.RTCPeerConnection) window.RTCPeerConnection = noopRtc;
-                if (window.webkitRTCPeerConnection) window.webkitRTCPeerConnection = noopRtc;
-
-                if (navigator.geolocation) {
-                  var fakePos = {
-                    coords: {
-                      latitude: ${profile.latitude},
-                      longitude: ${profile.longitude},
-                      accuracy: 18,
-                      altitude: null,
-                      altitudeAccuracy: null,
-                      heading: null,
-                      speed: null
-                    },
-                    timestamp: Date.now()
-                  };
-                  navigator.geolocation.getCurrentPosition = function(ok) {
-                    if (typeof ok === 'function') setTimeout(function() { ok(fakePos); }, 40);
-                  };
-                  navigator.geolocation.watchPosition = function(ok) {
-                    if (typeof ok === 'function') setTimeout(function() { ok(fakePos); }, 40);
-                    return 1;
-                  };
-                }
-                $iosWaCssBlock
-              } catch (e) {}
-            })();
-        """.trimIndent()
-    }
+        isWhatsAppIosMode: Boolean = false,
+        strictAntiDetect: Boolean = true
+    ): String = IdentityShield.buildShim(
+        profile = profile,
+        region = region,
+        desktopMode = desktopMode,
+        isWhatsAppIosMode = isWhatsAppIosMode,
+        strictAntiDetect = strictAntiDetect
+    )
 
     private fun generateLuhnImei(tac8: String): String {
         val base14 = tac8.take(8) + randomDigits(6)

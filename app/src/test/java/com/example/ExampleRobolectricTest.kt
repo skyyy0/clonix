@@ -207,6 +207,39 @@ class ExampleRobolectricTest {
     assertTrue(!sandboxDir.exists())
   }
 
+  @Test
+  fun `identity shim patches the signals a page actually reads and strict mode adds noise`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val crypto = VaultCryptoManager(context)
+    val jpRegion = VirtualRegionCatalog.findByCode("JP")
+    val host = HostDeviceBaseline(
+      manufacturer = "samsung",
+      model = "SM-S938B",
+      androidId = "host1234567890ab",
+      fingerprint = "samsung/host",
+      sdkInt = 35
+    )
+
+    val profile = crypto.synthesizeVirtualIdentity(jpRegion, host)
+    val strictShim = crypto.buildAntiDetectJsShim(profile, jpRegion, strictAntiDetect = true)
+
+    assertTrue(strictShim.contains("Asia/Tokyo"))
+    assertTrue(strictShim.contains("ja-JP"))
+    assertTrue(strictShim.contains("getTimezoneOffset"))
+    assertTrue(strictShim.contains("hardwareConcurrency"))
+    assertTrue(strictShim.contains("RTCPeerConnection"))
+    assertTrue(strictShim.contains("getImageData"))
+    assertTrue(strictShim.contains(profile.webglRenderer))
+    assertTrue(strictShim.contains("geolocation"))
+
+    val looseShim = crypto.buildAntiDetectJsShim(profile, jpRegion, strictAntiDetect = false)
+    assertTrue(!looseShim.contains("getImageData"))
+
+    val probe = com.example.security.IdentityShield.probeScript()
+    assertTrue(probe.contains("timezone"))
+    assertTrue(probe.contains("webgl"))
+  }
+
   private fun isValidLuhn(digits: String): Boolean {
     var sum = 0
     for (i in digits.indices) {

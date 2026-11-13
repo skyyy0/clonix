@@ -116,7 +116,7 @@ class InstalledAppsRepository(private val context: Context) {
 
             val portalSpec = knownSocialPortals[pkg]
             val category = portalSpec?.category ?: inferCategory(pkg, label, appInfo)
-            val launchMode = LaunchMode.NATIVE_BRIDGE
+            val launchMode = LaunchMode.ISOLATED_CONTAINER
             val portalUrl = portalSpec?.url ?: inferWebFallback(pkg)
 
             results += InstalledAppInfo(

@@ -17,6 +17,7 @@ import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -29,7 +30,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -169,6 +173,19 @@ fun ClonixRootApp(
     val isVaultUnlocked by viewModel.isVaultUnlocked.collectAsStateWithLifecycle()
     val pinError by viewModel.pinError.collectAsStateWithLifecycle()
     val vaultSizeBytes by viewModel.vaultSizeBytes.collectAsStateWithLifecycle()
+
+    // Auto-lock: when the user leaves Clonix and the preference is on, the PIN gate
+    // returns on the next foreground (real behaviour instead of an inert setting).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, preferences.autoLockOnExit) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP && preferences.autoLockOnExit) {
+                viewModel.lockVaultNow()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     ClonixTheme(themeMode = preferences.themeMode) {
         if (!isVaultUnlocked && preferences.isPinConfigured) {
@@ -314,6 +331,7 @@ fun ClonixRootApp(
                                     onThemeChange = { viewModel.setThemeMode(it) },
                                     onDefaultRegionChange = { viewModel.setDefaultRegion(it) },
                                     onStrictAntiDetectChange = { viewModel.setStrictAntiDetect(it) },
+                                    onAutoLockChange = { viewModel.setAutoLockOnExit(it) },
                                     onConfigurePin = { viewModel.configurePin(it) },
                                     onRemovePin = { viewModel.removePin() },
                                     onWipeAll = { viewModel.wipeAllSandboxes() }

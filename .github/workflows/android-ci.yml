@@ -1,0 +1,75 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+  workflow_dispatch:
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build APK & unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # The repo has no gradlew wrapper script, so CI provisions Gradle directly.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
+
+      # The repo ships no keystore (secrets stay out of git), so CI generates throwaway
+      # debug/release keys. Builds produced here are for verification, not for publishing.
+      - name: Generate CI keystores
+        run: |
+          set -euo pipefail
+          keytool -genkeypair -v -keystore debug.keystore -storepass android -keypass android \
+            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+          keytool -genkeypair -v -keystore my-upload-key.jks -storepass ci-upload-pass -keypass ci-upload-pass \
+            -alias upload -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Clonix CI,O=Clonix,C=ID"
+
+      - name: Unit tests
+        env:
+          STORE_PASSWORD: ci-upload-pass
+          KEY_PASSWORD: ci-upload-pass
+        run: gradle --no-daemon testDebugUnitTest
+
+      - name: Assemble debug APK
+        env:
+          STORE_PASSWORD: ci-upload-pass
+          KEY_PASSWORD: ci-upload-pass
+        run: gradle --no-daemon assembleDebug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clonix-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: app/build/reports/tests/testDebugUnitTest
+          if-no-files-found: ignore
+          retention-days: 7

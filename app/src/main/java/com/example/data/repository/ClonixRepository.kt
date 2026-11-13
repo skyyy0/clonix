@@ -110,13 +110,13 @@ class ClonixRepository(
             val keystoreReady = cryptoManager.isHardwareKeystoreReady()
             delay(380)
 
-            // Stage 3: Synthesize 100% fresh Virtual Device Hardware & Telephony Identity
+            // Stage 3: Synthesize a coherent, unlinkable device identity
             val iosSuffix = if (isWhatsApp && platform == DevicePlatform.IOS) " • Edisi iOS" else ""
             emit(
                 emitStep(
                     stepIndex = 3,
                     title = "Membentuk Perangkat Baru (${platform.label}$iosSuffix)",
-                    detail = "Mengganti ID perangkat, IMEI, nomor seri, operator SIM ${region.carrierName}, dan model menjadi unit baru.",
+                    detail = "Menyusun identitas baru: model, GPU, resolusi, zona waktu, bahasa, dan operator ${region.carrierName} yang saling konsisten.",
                     logLine = "Identitas baru disetel: ${platform.label} (${region.code})"
                 )
             )
@@ -129,37 +129,35 @@ class ClonixRepository(
             val fpHash = cryptoManager.sha256Hex(virtualProfile.buildFingerprint).take(16).uppercase()
             delay(440)
 
-            // Stage 4: Partition & Hardened Regional Engine (WhatsApp auto-country relay without VPN)
-            var effectiveProxy = proxyConfig
-            val initialExitReport = if (isWhatsApp || !effectiveProxy.isConfigured) {
-                emit(
-                    emitStep(
-                        stepIndex = 4,
-                        title = if (isWhatsApp) "Penyesuaian Wilayah WhatsApp (${region.code})" else "Mengatur Lokasi & Jaringan ${region.code}",
-                        detail = if (isWhatsApp) {
-                            "Memeriksa kesesuaian rute jaringan dengan negara ${region.displayName} tanpa bergantung pada VPN..."
-                        } else {
-                            "Menyelaraskan zona waktu ${region.timezoneId}, bahasa ${region.localeTag}, dan partisi data."
-                        },
-                        logLine = "Mengkalibrasi zona waktu ${region.timezoneId} & lokasi ${region.city}"
-                    )
+            // Stage 4: Regional routing. The public exit IP is the signal a server actually
+            // trusts for "where is this device", so verify the user's own proxy/VPN route and
+            // report it honestly instead of gambling on free public relays.
+            val effectiveProxy = proxyConfig
+            emit(
+                emitStep(
+                    stepIndex = 4,
+                    title = "Menyelaraskan Wilayah & Jaringan ${region.code}",
+                    detail = if (effectiveProxy.isConfigured) {
+                        "Memverifikasi IP keluar lewat proxy ${effectiveProxy.summary()}."
+                    } else {
+                        "Menyelaraskan zona waktu ${region.timezoneId}, bahasa ${region.localeTag}, lokasi, lalu memeriksa IP keluar."
+                    },
+                    logLine = "Mengkalibrasi zona waktu ${region.timezoneId} & lokasi ${region.city}"
                 )
-                networkRoutingEngine.probeExitIp(effectiveProxy.takeIf { it.isConfigured }, region.code)
-            } else null
-
-            if (isWhatsApp && !effectiveProxy.isConfigured && initialExitReport != null && !initialExitReport.matchesTargetRegion) {
-                emit(
-                    emitStep(
-                        stepIndex = 4,
-                        title = "Mencari Rute Otomatis ${region.code} (Tanpa VPN)",
-                        detail = "IP saat ini terdeteksi di ${initialExitReport.countryCode.ifBlank { "lokal" }}. Engine sedang menguji relay jaringan ${region.displayName}...",
-                        logLine = "IP awal: ${initialExitReport.countryCode.ifBlank { "ID" }} -> Mencari rute ${region.code}"
-                    )
-                )
-                val (discoveredProxy, verifiedReport) = networkRoutingEngine.discoverAndVerifyRegionalRelay(region.code)
-                if (discoveredProxy != null && verifiedReport != null) {
-                    effectiveProxy = discoveredProxy
-                }
+            )
+            val exitReport = networkRoutingEngine.probeExitIp(
+                effectiveProxy.takeIf { it.isConfigured },
+                region.code
+            )
+            val routeSummary = when {
+                effectiveProxy.isConfigured && exitReport.matchesTargetRegion ->
+                    "Proxy ${effectiveProxy.summary()} • IP ${exitReport.countryCode}"
+                effectiveProxy.isConfigured ->
+                    "Proxy ${effectiveProxy.summary()} • IP ${exitReport.countryCode.ifBlank { "tidak diketahui" }} (belum ${region.code})"
+                exitReport.matchesTargetRegion ->
+                    "IP publik ${exitReport.countryCode} sudah sesuai ${region.code}"
+                else ->
+                    "IP publik ${exitReport.countryCode.ifBlank { "tidak diketahui" }} (bukan ${region.code})"
             }
 
             val partitionResult = cryptoManager.provisionNativeSandboxPartition(
@@ -172,12 +170,12 @@ class ClonixRepository(
             delay(360)
 
             // Stage 5: Encrypt Virtual Profile, Proxy Credentials & Empty Cookie Vault
-            val proxyLabel = if (effectiveProxy.isConfigured) effectiveProxy.summary() else "Rute Regional Terisolasi"
+            val proxyLabel = if (effectiveProxy.isConfigured) effectiveProxy.summary() else "tanpa proxy"
             emit(
                 emitStep(
                     stepIndex = 5,
                     title = "Menyegel Profil & Rute Jaringan",
-                    detail = "Menyimpan profil ${virtualProfile.model} serta rute $proxyLabel ke ruang terenkripsi.",
+                    detail = "Menyimpan profil ${virtualProfile.model} ke brankas terenkripsi. Rute: $routeSummary.",
                     logLine = "Profil ${virtualProfile.model} & rute $proxyLabel tersimpan aman"
                 )
             )
@@ -256,7 +254,7 @@ class ClonixRepository(
 
             dao.insertClone(entity)
             val auditTitle = "Kloning Dibuat: $finalLabel"
-            val auditDetail = "${platform.label} ${virtualProfile.model} | IMEI ${virtualProfile.virtualImei.take(8)}.. | Negara ${region.code}"
+            val auditDetail = "${platform.label} ${virtualProfile.model} | Negara ${region.code} | $routeSummary"
             dao.insertAuditLog(
                 SandboxAuditLogEntity(
                     cloneId = cloneId,

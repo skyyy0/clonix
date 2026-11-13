@@ -43,6 +43,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DesktopWindows
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -89,6 +90,7 @@ import com.example.data.model.VirtualDeviceProfile
 import com.example.data.model.VirtualRegionCatalog
 import com.example.data.repository.ClonixRepository
 import com.example.data.repository.InstalledAppsRepository
+import com.example.security.IdentityShield
 import com.example.security.VaultCryptoManager
 import com.example.ui.components.LiquidGlassBackdrop
 import com.example.ui.components.LiquidGlassSurface
@@ -137,6 +139,7 @@ class CloneRuntimeActivity : ComponentActivity() {
                     db = db,
                     repository = repository,
                     installedRepo = installedRepo,
+                    strictAntiDetect = prefs.strictAntiDetect,
                     onTaskReady = { label, icon ->
                         applyCloneTaskDescription(label, icon)
                     },
@@ -225,6 +228,7 @@ private fun CloneRuntimeContainer(
     db: ClonixDatabase,
     repository: ClonixRepository,
     installedRepo: InstalledAppsRepository,
+    strictAntiDetect: Boolean,
     onTaskReady: (String, Bitmap?) -> Unit,
     onUrlChanged: (String, String) -> Unit,
     onProxyStateChanged: (Boolean) -> Unit,
@@ -243,6 +247,7 @@ private fun CloneRuntimeContainer(
     var pageProgress by remember { mutableIntStateOf(0) }
     var currentUrl by remember(cloneId) { mutableStateOf("") }
     var showHudDetails by remember { mutableStateOf(false) }
+    var auditResult by remember { mutableStateOf<String?>(null) }
     var exitReport by remember(cloneId) { mutableStateOf<NetworkExitReport?>(null) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
 
@@ -508,6 +513,43 @@ private fun CloneRuntimeContainer(
                                     )
                                 }
 
+                                Spacer(modifier = Modifier.height(6.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        webViewRef?.evaluateJavascript(IdentityShield.probeScript()) { raw ->
+                                            auditResult = raw
+                                                .trim()
+                                                .removeSurrounding("\"")
+                                                .replace("\\\"", "\"")
+                                                .replace("\\\\", "\\")
+                                        }
+                                    },
+                                    shape = CircleShape,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(34.dp)
+                                        .testTag("runtime_identity_audit")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Fingerprint,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Audit identitas live (baca dari halaman)",
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                                if (auditResult != null) {
+                                    Text(
+                                        text = auditResult!!,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = scheme.onSurfaceVariant
+                                    )
+                                }
+
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     OutlinedButton(
@@ -611,12 +653,13 @@ private fun CloneRuntimeContainer(
                     }
                 }
             } else {
-                val antiDetectShim = remember(activeProfile, desktopMode, isWhatsAppIos) {
-                    repository.cryptoManager.buildAntiDetectJsShim(
+                val antiDetectShim = remember(activeProfile, desktopMode, isWhatsAppIos, strictAntiDetect) {
+                    IdentityShield.buildShim(
                         profile = activeProfile,
                         region = region,
                         desktopMode = desktopMode,
-                        isWhatsAppIosMode = isWhatsAppIos
+                        isWhatsAppIosMode = isWhatsAppIos,
+                        strictAntiDetect = strictAntiDetect
                     )
                 }
                 val headers = remember(region) {
@@ -679,22 +722,24 @@ private fun CloneRuntimeContainer(
                                         currentUrl = url
                                         onUrlChanged(activeClone.targetWebUrl, url)
                                     }
-                                    val latestShim = repository.cryptoManager.buildAntiDetectJsShim(
+                                    val latestShim = IdentityShield.buildShim(
                                         profile = activeProfile,
                                         region = region,
                                         desktopMode = desktopMode,
-                                        isWhatsAppIosMode = isWhatsAppIos
+                                        isWhatsAppIosMode = isWhatsAppIos,
+                                        strictAntiDetect = strictAntiDetect
                                     )
                                     view?.evaluateJavascript(latestShim, null)
                                 }
 
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     super.onPageFinished(view, url)
-                                    val latestShim = repository.cryptoManager.buildAntiDetectJsShim(
+                                    val latestShim = IdentityShield.buildShim(
                                         profile = activeProfile,
                                         region = region,
                                         desktopMode = desktopMode,
-                                        isWhatsAppIosMode = isWhatsAppIos
+                                        isWhatsAppIosMode = isWhatsAppIos,
+                                        strictAntiDetect = strictAntiDetect
                                     )
                                     view?.evaluateJavascript(latestShim, null)
                                 }

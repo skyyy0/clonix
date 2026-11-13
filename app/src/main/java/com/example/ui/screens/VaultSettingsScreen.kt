@@ -93,6 +93,7 @@ fun VaultSettingsScreen(
     onThemeChange: (ThemeMode) -> Unit,
     onDefaultRegionChange: (String) -> Unit,
     onStrictAntiDetectChange: (Boolean) -> Unit,
+    onAutoLockChange: (Boolean) -> Unit,
     onConfigurePin: (String) -> Unit,
     onRemovePin: () -> Unit,
     onWipeAll: () -> Unit,
@@ -390,14 +391,41 @@ fun VaultSettingsScreen(
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
-                                    text = "Acak Android ID, User-Agent, & Timezone tiap kontainer.",
+                                    text = "Noise canvas/audio + sanitasi kandidat WebRTC di tiap kontainer.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = scheme.onSurfaceVariant
                                 )
                             }
                             Switch(
                                 checked = preferences.strictAntiDetect,
-                                onCheckedChange = onStrictAntiDetectChange
+                                onCheckedChange = onStrictAntiDetectChange,
+                                modifier = Modifier.testTag("strict_anti_detect_switch")
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Kunci Otomatis Saat Keluar",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Minta PIN lagi setiap Clonix ditinggalkan.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = scheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = preferences.autoLockOnExit,
+                                onCheckedChange = onAutoLockChange,
+                                modifier = Modifier.testTag("auto_lock_switch")
                             )
                         }
 

@@ -389,8 +389,6 @@ private fun ClonedAppGlassCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            val isNative = clone.launchMode == com.example.data.model.LaunchMode.NATIVE_BRIDGE.name
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

@@ -12,7 +12,7 @@ enum class AppCategory(val labelId: String) {
 
 enum class DevicePlatform(val label: String, val badge: String) {
     ANDROID("Android", "Android"),
-    IOS("iPhone (iOS)", "iOS")
+    IOS("iPhone (emulasi web)", "iOS")
 }
 
 enum class ProxyType(val label: String) {
@@ -47,9 +47,16 @@ data class NetworkExitReport(
     val errorMessage: String? = null
 )
 
+/**
+ * Clonix runs clones inside a WebView container, so the only launch mode is the
+ * isolated web container. The enum is kept for database/cloud compatibility.
+ */
 enum class LaunchMode(val label: String, val badge: String) {
-    ISOLATED_CONTAINER("Kontainer Web Terisolasi", "SANDBOX"),
-    NATIVE_BRIDGE("Ruang Virtual Perangkat", "NATIVE")
+    ISOLATED_CONTAINER("Kontainer Web Terisolasi", "WEB");
+
+    companion object {
+        fun fromStored(@Suppress("UNUSED_PARAMETER") raw: String?): LaunchMode = ISOLATED_CONTAINER
+    }
 }
 
 data class VirtualRegion(
@@ -84,56 +91,215 @@ data class VirtualModelPreset(
     val screenWidth: Int,
     val screenHeight: Int,
     val densityDpi: Int,
-    val platform: DevicePlatform = DevicePlatform.ANDROID
+    val platform: DevicePlatform = DevicePlatform.ANDROID,
+    val soc: String = "Snapdragon 8 Elite",
+    val gpuVendor: String = "Qualcomm",
+    val gpuRenderer: String = "Adreno (TM) 830",
+    val cpuCores: Int = 8,
+    val ramGb: Int = 12,
+    val imeiTac: String = "35182910"
+) {
+    /** CSS pixels reported by the browser at this density. */
+    val cssWidth: Int get() = (screenWidth * 160.0 / densityDpi).toInt()
+    val cssHeight: Int get() = (screenHeight * 160.0 / densityDpi).toInt()
+
+    /** Marketing name for the picker; [model] is what the user agent reports. */
+    val displayName: String get() = deviceMarketingNames[model] ?: model
+}
+
+/** Marketing names only — never used for fingerprint values, which come from [model]. */
+private val deviceMarketingNames: Map<String, String> = mapOf(
+    "SM-S938B" to "Samsung Galaxy S25 Ultra",
+    "SM-S936B" to "Samsung Galaxy S25+",
+    "SM-S931B" to "Samsung Galaxy S25",
+    "SM-A566B" to "Samsung Galaxy A56 5G",
+    "Pixel 9 Pro" to "Google Pixel 9 Pro",
+    "Pixel 9a" to "Google Pixel 9a",
+    "25010PN30G" to "Xiaomi 15 Ultra",
+    "CPH2653" to "OnePlus 13",
+    "CPH2659" to "OPPO Find X8 Pro",
+    "V2413" to "vivo X200 Pro",
+    "XQ-EC44" to "Sony Xperia 1 VI",
+    "motorola edge 50 ultra" to "Motorola Edge 50 Ultra",
+    "iPhone 16 Pro Max" to "Apple iPhone 16 Pro Max",
+    "iPhone 16 Pro" to "Apple iPhone 16 Pro",
+    "iPhone 16 Plus" to "Apple iPhone 16 Plus",
+    "iPhone 16" to "Apple iPhone 16",
+    "iPhone 15 Pro" to "Apple iPhone 15 Pro"
 )
 
-private val defaultIosPresets: List<VirtualModelPreset> = listOf(
-    VirtualModelPreset(
-        brand = "Apple",
-        manufacturer = "Apple",
-        model = "iPhone 16 Pro Max",
-        deviceCode = "iPhone17,2",
-        board = "D94AP",
-        hardware = "A18Pro",
-        androidVersion = "18.3.1",
-        sdkInt = 183,
-        buildId = "22D72",
-        screenWidth = 1320,
-        screenHeight = 2868,
-        densityDpi = 460,
-        platform = DevicePlatform.IOS
-    ),
-    VirtualModelPreset(
-        brand = "Apple",
-        manufacturer = "Apple",
-        model = "iPhone 15 Pro",
-        deviceCode = "iPhone16,1",
-        board = "D83AP",
-        hardware = "A17Pro",
-        androidVersion = "18.2.1",
-        sdkInt = 182,
-        buildId = "22C161",
-        screenWidth = 1179,
-        screenHeight = 2556,
-        densityDpi = 460,
-        platform = DevicePlatform.IOS
-    ),
-    VirtualModelPreset(
-        brand = "Apple",
-        manufacturer = "Apple",
-        model = "iPhone 16",
-        deviceCode = "iPhone17,3",
-        board = "D47AP",
-        hardware = "A18",
-        androidVersion = "18.3.1",
-        sdkInt = 183,
-        buildId = "22D72",
-        screenWidth = 1179,
-        screenHeight = 2556,
-        densityDpi = 460,
-        platform = DevicePlatform.IOS
+/**
+ * Shared, coherent device catalog. Every preset carries the SoC/GPU/RAM/IMEI TAC used
+ * by the web identity shim, so the reported device is internally consistent instead of
+ * a random mix of impossible values.
+ */
+object VirtualModelCatalog {
+
+    val android: List<VirtualModelPreset> = listOf(
+        VirtualModelPreset(
+            brand = "samsung", manufacturer = "Samsung", model = "SM-S938B",
+            deviceCode = "pa3q", board = "sun", hardware = "qcom",
+            androidVersion = "15", sdkInt = 35, buildId = "AP3A.250105.008",
+            screenWidth = 1440, screenHeight = 3120, densityDpi = 500,
+            soc = "Snapdragon 8 Elite", gpuVendor = "Qualcomm",
+            gpuRenderer = "Adreno (TM) 830", cpuCores = 8, ramGb = 12,
+            imeiTac = "35182910"
+        ),
+        VirtualModelPreset(
+            brand = "samsung", manufacturer = "Samsung", model = "SM-S936B",
+            deviceCode = "e2q", board = "s5e9955", hardware = "exynos",
+            androidVersion = "15", sdkInt = 35, buildId = "AP3A.250105.006",
+            screenWidth = 1440, screenHeight = 3120, densityDpi = 490,
+            soc = "Exynos 2500", gpuVendor = "ARM",
+            gpuRenderer = "Xclipse 950", cpuCores = 10, ramGb = 12,
+            imeiTac = "35182920"
+        ),
+        VirtualModelPreset(
+            brand = "samsung", manufacturer = "Samsung", model = "SM-S931B",
+            deviceCode = "e1q", board = "s5e9955", hardware = "exynos",
+            androidVersion = "15", sdkInt = 35, buildId = "AP3A.250105.004",
+            screenWidth = 1080, screenHeight = 2340, densityDpi = 425,
+            soc = "Exynos 2500", gpuVendor = "ARM",
+            gpuRenderer = "Xclipse 950", cpuCores = 10, ramGb = 12,
+            imeiTac = "35182930"
+        ),
+        VirtualModelPreset(
+            brand = "samsung", manufacturer = "Samsung", model = "SM-A566B",
+            deviceCode = "a56x", board = "s5e8855", hardware = "exynos",
+            androidVersion = "15", sdkInt = 35, buildId = "AP3A.250204.006",
+            screenWidth = 1080, screenHeight = 2340, densityDpi = 390,
+            soc = "Exynos 1580", gpuVendor = "ARM",
+            gpuRenderer = "Xclipse 540", cpuCores = 8, ramGb = 8,
+            imeiTac = "35261911"
+        ),
+        VirtualModelPreset(
+            brand = "google", manufacturer = "Google", model = "Pixel 9 Pro",
+            deviceCode = "caiman", board = "caiman", hardware = "caiman",
+            androidVersion = "15", sdkInt = 35, buildId = "AP3A.250205.002",
+            screenWidth = 1280, screenHeight = 2856, densityDpi = 495,
+            soc = "Google Tensor G4", gpuVendor = "ARM",
+            gpuRenderer = "Mali-G715", cpuCores = 8, ramGb = 16,
+            imeiTac = "35151234"
+        ),
+        VirtualModelPreset(
+            brand = "google", manufacturer = "Google", model = "Pixel 9a",
+            deviceCode = "tegu", board = "tegu", hardware = "tegu",
+            androidVersion = "15", sdkInt = 35, buildId = "AP3A.250205.003",
+            screenWidth = 1080, screenHeight = 2424, densityDpi = 422,
+            soc = "Google Tensor G4", gpuVendor = "ARM",
+            gpuRenderer = "Mali-G715", cpuCores = 8, ramGb = 8,
+            imeiTac = "35151250"
+        ),
+        VirtualModelPreset(
+            brand = "Xiaomi", manufacturer = "Xiaomi", model = "25010PN30G",
+            deviceCode = "xuanyuan", board = "sun", hardware = "qcom",
+            androidVersion = "15", sdkInt = 35, buildId = "OS2.0.13.0.VOAEUXM",
+            screenWidth = 1440, screenHeight = 3200, densityDpi = 522,
+            soc = "Snapdragon 8 Elite", gpuVendor = "Qualcomm",
+            gpuRenderer = "Adreno (TM) 830", cpuCores = 8, ramGb = 16,
+            imeiTac = "86918203"
+        ),
+        VirtualModelPreset(
+            brand = "OnePlus", manufacturer = "OnePlus", model = "CPH2653",
+            deviceCode = "OP5D2FL1", board = "sun", hardware = "qcom",
+            androidVersion = "15", sdkInt = 35, buildId = "AP3A.241105.008",
+            screenWidth = 1440, screenHeight = 3168, densityDpi = 510,
+            soc = "Snapdragon 8 Elite", gpuVendor = "Qualcomm",
+            gpuRenderer = "Adreno (TM) 830", cpuCores = 8, ramGb = 16,
+            imeiTac = "86451203"
+        ),
+        VirtualModelPreset(
+            brand = "OPPO", manufacturer = "OPPO", model = "CPH2659",
+            deviceCode = "OP5D3BL1", board = "mt6991", hardware = "mt6991",
+            androidVersion = "15", sdkInt = 35, buildId = "AP3A.241105.008",
+            screenWidth = 1264, screenHeight = 2780, densityDpi = 450,
+            soc = "MediaTek Dimensity 9400", gpuVendor = "ARM",
+            gpuRenderer = "Immortalis-G925", cpuCores = 8, ramGb = 12,
+            imeiTac = "86754321"
+        ),
+        VirtualModelPreset(
+            brand = "vivo", manufacturer = "vivo", model = "V2413",
+            deviceCode = "PD2413", board = "mt6991", hardware = "mt6991",
+            androidVersion = "15", sdkInt = 35, buildId = "AP3A.250102.002",
+            screenWidth = 1260, screenHeight = 2800, densityDpi = 452,
+            soc = "MediaTek Dimensity 9400", gpuVendor = "ARM",
+            gpuRenderer = "Immortalis-G925", cpuCores = 8, ramGb = 16,
+            imeiTac = "86123456"
+        ),
+        VirtualModelPreset(
+            brand = "Sony", manufacturer = "Sony", model = "XQ-EC44",
+            deviceCode = "pdx245", board = "pineapple", hardware = "qcom",
+            androidVersion = "14", sdkInt = 34, buildId = "69.0.A.2.55",
+            screenWidth = 1080, screenHeight = 2340, densityDpi = 396,
+            soc = "Snapdragon 8 Gen 3", gpuVendor = "Qualcomm",
+            gpuRenderer = "Adreno (TM) 750", cpuCores = 8, ramGb = 12,
+            imeiTac = "35987102"
+        ),
+        VirtualModelPreset(
+            brand = "motorola", manufacturer = "Motorola", model = "motorola edge 50 ultra",
+            deviceCode = "eqe", board = "eqe", hardware = "qcom",
+            androidVersion = "14", sdkInt = 34, buildId = "U2UX34.56-22",
+            screenWidth = 1220, screenHeight = 2712, densityDpi = 446,
+            soc = "Snapdragon 8s Gen 3", gpuVendor = "Qualcomm",
+            gpuRenderer = "Adreno (TM) 735", cpuCores = 8, ramGb = 12,
+            imeiTac = "35322211"
+        )
     )
-)
+
+    val ios: List<VirtualModelPreset> = listOf(
+        VirtualModelPreset(
+            brand = "Apple", manufacturer = "Apple", model = "iPhone 16 Pro Max",
+            deviceCode = "iPhone17,2", board = "D94AP", hardware = "A18Pro",
+            androidVersion = "18.3.1", sdkInt = 183, buildId = "22D72",
+            screenWidth = 1320, screenHeight = 2868, densityDpi = 460,
+            platform = DevicePlatform.IOS, soc = "Apple A18 Pro",
+            gpuVendor = "Apple Inc.", gpuRenderer = "Apple GPU",
+            cpuCores = 6, ramGb = 8, imeiTac = "35881209"
+        ),
+        VirtualModelPreset(
+            brand = "Apple", manufacturer = "Apple", model = "iPhone 16 Pro",
+            deviceCode = "iPhone17,1", board = "D93AP", hardware = "A18Pro",
+            androidVersion = "18.3.1", sdkInt = 183, buildId = "22D72",
+            screenWidth = 1206, screenHeight = 2622, densityDpi = 460,
+            platform = DevicePlatform.IOS, soc = "Apple A18 Pro",
+            gpuVendor = "Apple Inc.", gpuRenderer = "Apple GPU",
+            cpuCores = 6, ramGb = 8, imeiTac = "35881217"
+        ),
+        VirtualModelPreset(
+            brand = "Apple", manufacturer = "Apple", model = "iPhone 16 Plus",
+            deviceCode = "iPhone17,4", board = "D48AP", hardware = "A18",
+            androidVersion = "18.3.1", sdkInt = 183, buildId = "22D72",
+            screenWidth = 1290, screenHeight = 2796, densityDpi = 460,
+            platform = DevicePlatform.IOS, soc = "Apple A18",
+            gpuVendor = "Apple Inc.", gpuRenderer = "Apple GPU",
+            cpuCores = 6, ramGb = 8, imeiTac = "35881225"
+        ),
+        VirtualModelPreset(
+            brand = "Apple", manufacturer = "Apple", model = "iPhone 16",
+            deviceCode = "iPhone17,3", board = "D47AP", hardware = "A18",
+            androidVersion = "18.3.1", sdkInt = 183, buildId = "22D72",
+            screenWidth = 1179, screenHeight = 2556, densityDpi = 460,
+            platform = DevicePlatform.IOS, soc = "Apple A18",
+            gpuVendor = "Apple Inc.", gpuRenderer = "Apple GPU",
+            cpuCores = 6, ramGb = 8, imeiTac = "35881233"
+        ),
+        VirtualModelPreset(
+            brand = "Apple", manufacturer = "Apple", model = "iPhone 15 Pro",
+            deviceCode = "iPhone16,1", board = "D83AP", hardware = "A17Pro",
+            androidVersion = "18.2.1", sdkInt = 182, buildId = "22C161",
+            screenWidth = 1179, screenHeight = 2556, densityDpi = 460,
+            platform = DevicePlatform.IOS, soc = "Apple A17 Pro",
+            gpuVendor = "Apple Inc.", gpuRenderer = "Apple GPU",
+            cpuCores = 6, ramGb = 8, imeiTac = "35881241"
+        )
+    )
+
+    fun forPlatform(platform: DevicePlatform): List<VirtualModelPreset> =
+        if (platform == DevicePlatform.IOS) ios else android
+
+    fun findByModel(model: String): VirtualModelPreset? =
+        (android + ios).firstOrNull { it.model.equals(model, ignoreCase = true) }
+}
 
 object VirtualRegionCatalog {
     val regions: List<VirtualRegion> = listOf(
@@ -152,12 +318,8 @@ object VirtualRegionCatalog {
             currencyCode = "USD",
             latitude = 40.7128,
             longitude = -74.0060,
-            deviceModels = listOf(
-                VirtualModelPreset("Google", "Google", "Pixel 9 Pro", "caiman", "caiman", "caiman", "15", 35, "AP3A.250205.002", 1280, 2856, 480),
-                VirtualModelPreset("samsung", "Samsung", "SM-S938U", "pa3q", "sun", "qcom", "15", 35, "AP3A.250105.008", 1440, 3120, 560),
-                VirtualModelPreset("motorola", "Motorola", "motorola edge 50 ultra", "eqe", "eqe", "qcom", "14", 34, "U2UX34.56-22", 1220, 2712, 440)
-            ),
-            iosModels = defaultIosPresets
+            deviceModels = VirtualModelCatalog.android,
+            iosModels = VirtualModelCatalog.ios
         ),
         VirtualRegion(
             code = "GB",
@@ -174,11 +336,8 @@ object VirtualRegionCatalog {
             currencyCode = "GBP",
             latitude = 51.5074,
             longitude = -0.1278,
-            deviceModels = listOf(
-                VirtualModelPreset("Google", "Google", "Pixel 9", "tokay", "tokay", "tokay", "15", 35, "AP3A.250205.002", 1080, 2424, 420),
-                VirtualModelPreset("Nothing", "Nothing", "A142", "Pacman", "mt6886", "mt6886", "14", 34, "UP1A.240905.001", 1084, 2412, 400)
-            ),
-            iosModels = defaultIosPresets
+            deviceModels = VirtualModelCatalog.android,
+            iosModels = VirtualModelCatalog.ios
         ),
         VirtualRegion(
             code = "JP",
@@ -195,11 +354,8 @@ object VirtualRegionCatalog {
             currencyCode = "JPY",
             latitude = 35.6762,
             longitude = 139.6503,
-            deviceModels = listOf(
-                VirtualModelPreset("Sony", "Sony", "XQ-EC44", "pdx245", "pineapple", "qcom", "14", 34, "69.0.A.2.55", 1080, 2340, 420),
-                VirtualModelPreset("SHARP", "SHARP", "SH-51E", "leitz", "pineapple", "qcom", "14", 34, "01.00.09", 1260, 2730, 480)
-            ),
-            iosModels = defaultIosPresets
+            deviceModels = VirtualModelCatalog.android,
+            iosModels = VirtualModelCatalog.ios
         ),
         VirtualRegion(
             code = "SG",
@@ -216,11 +372,8 @@ object VirtualRegionCatalog {
             currencyCode = "SGD",
             latitude = 1.3521,
             longitude = 103.8198,
-            deviceModels = listOf(
-                VirtualModelPreset("samsung", "Samsung", "SM-S926B", "e2s", "s5e9945", "exynos2400", "15", 35, "AP3A.250105.004", 1440, 3120, 560),
-                VirtualModelPreset("OPPO", "OPPO", "CPH2659", "OP5D0DL1", "mt6991", "mt6991", "15", 35, "AP3A.241105.008", 1264, 2780, 480)
-            ),
-            iosModels = defaultIosPresets
+            deviceModels = VirtualModelCatalog.android,
+            iosModels = VirtualModelCatalog.ios
         ),
         VirtualRegion(
             code = "ID",
@@ -237,11 +390,8 @@ object VirtualRegionCatalog {
             currencyCode = "IDR",
             latitude = -6.2088,
             longitude = 106.8456,
-            deviceModels = listOf(
-                VirtualModelPreset("Xiaomi", "Xiaomi", "24129PN74G", "dada", "sun", "qcom", "15", 35, "AQ3A.240829.003", 1200, 2670, 460),
-                VirtualModelPreset("vivo", "vivo", "V2408A", "PD2408", "mt6991", "mt6991", "15", 35, "AP3A.241005.015", 1260, 2800, 480)
-            ),
-            iosModels = defaultIosPresets
+            deviceModels = VirtualModelCatalog.android,
+            iosModels = VirtualModelCatalog.ios
         ),
         VirtualRegion(
             code = "DE",
@@ -258,11 +408,8 @@ object VirtualRegionCatalog {
             currencyCode = "EUR",
             latitude = 52.5200,
             longitude = 13.4050,
-            deviceModels = listOf(
-                VirtualModelPreset("samsung", "Samsung", "SM-A556B", "a55x", "s5e8845", "exynos1480", "14", 34, "UP1A.231005.007", 1080, 2340, 420),
-                VirtualModelPreset("OnePlus", "OnePlus", "CPH2653", "OP5CF9L1", "sun", "qcom", "15", 35, "AP3A.241105.008", 1440, 3168, 560)
-            ),
-            iosModels = defaultIosPresets
+            deviceModels = VirtualModelCatalog.android,
+            iosModels = VirtualModelCatalog.ios
         ),
         VirtualRegion(
             code = "KR",
@@ -279,11 +426,8 @@ object VirtualRegionCatalog {
             currencyCode = "KRW",
             latitude = 37.5665,
             longitude = 126.9780,
-            deviceModels = listOf(
-                VirtualModelPreset("samsung", "Samsung", "SM-S938N", "pa3q", "sun", "qcom", "15", 35, "AP3A.250105.008", 1440, 3120, 560),
-                VirtualModelPreset("samsung", "Samsung", "SM-F956N", "q6q", "pineapple", "qcom", "14", 34, "UP1A.231005.007", 1856, 2160, 420)
-            ),
-            iosModels = defaultIosPresets
+            deviceModels = VirtualModelCatalog.android,
+            iosModels = VirtualModelCatalog.ios
         ),
         VirtualRegion(
             code = "AU",
@@ -300,11 +444,8 @@ object VirtualRegionCatalog {
             currencyCode = "AUD",
             latitude = -33.8688,
             longitude = 151.2093,
-            deviceModels = listOf(
-                VirtualModelPreset("Google", "Google", "Pixel 9 Pro XL", "komodo", "komodo", "komodo", "15", 35, "AP3A.250205.002", 1344, 2992, 512),
-                VirtualModelPreset("OPPO", "OPPO", "CPH2607", "OP5961L1", "pineapple", "qcom", "14", 34, "UKQ1.230924.001", 1080, 2412, 420)
-            ),
-            iosModels = defaultIosPresets
+            deviceModels = VirtualModelCatalog.android,
+            iosModels = VirtualModelCatalog.ios
         )
     )
 
@@ -352,7 +493,9 @@ data class VirtualDeviceProfile(
     val carrierName: String,
     val mccMnc: String,
     val latitude: Double,
-    val longitude: Double
+    val longitude: Double,
+    val deviceMemoryGb: Int = 8,
+    val cpuCores: Int = 8
 )
 
 data class InstalledAppInfo(

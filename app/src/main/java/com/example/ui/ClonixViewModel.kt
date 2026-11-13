@@ -297,7 +297,13 @@ class ClonixViewModel(
         isWhatsAppIosMode: Boolean = false
     ): String {
         val region = VirtualRegionCatalog.findByCode(profile.regionCode)
-        return cryptoManager.buildAntiDetectJsShim(profile, region, desktopMode, isWhatsAppIosMode)
+        return cryptoManager.buildAntiDetectJsShim(
+            profile = profile,
+            region = region,
+            desktopMode = desktopMode,
+            isWhatsAppIosMode = isWhatsAppIosMode,
+            strictAntiDetect = preferences.value.strictAntiDetect
+        )
     }
 
     fun setThemeMode(mode: ThemeMode) {
@@ -310,6 +316,10 @@ class ClonixViewModel(
 
     fun setStrictAntiDetect(enabled: Boolean) {
         viewModelScope.launch { preferencesRepository.setStrictAntiDetect(enabled) }
+    }
+
+    fun setAutoLockOnExit(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepository.setAutoLockOnExit(enabled) }
     }
 
     fun verifyPin(pin: String) {

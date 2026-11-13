@@ -162,13 +162,11 @@ fun CloneInspectorSheet(
                         hostValue = hostBaseline.androidId.take(12) + "…",
                         virtualValue = clone.virtualAndroidId
                     )
-                    if (clone.virtualImei.isNotBlank() || clone.virtualImsi.isNotBlank()) {
-                        ComparisonRow(
-                            field = "IMEI & Nomor SIM Virtual",
-                            hostValue = "Tersembunyi",
-                            virtualValue = "${clone.virtualImei.ifBlank { "-" }} • ${clone.virtualImsi.ifBlank { "-" }}"
-                        )
-                    }
+                    ComparisonRow(
+                        field = "IMEI / Build Perangkat",
+                        hostValue = "Milik perangkat asli",
+                        virtualValue = "Tidak dipalsukan (butuh root)"
+                    )
                     if (clone.virtualGsfId.isNotBlank() || clone.virtualWidevineId.isNotBlank()) {
                         ComparisonRow(
                             field = "ID Layanan & Keamanan",
@@ -177,14 +175,14 @@ fun CloneInspectorSheet(
                         )
                     }
                     ComparisonRow(
-                        field = "Nomor Seri & MAC",
-                        hostValue = "Tersembunyi",
-                        virtualValue = "${clone.virtualSerial} • ${clone.virtualMacAddress}"
+                        field = "Metadata Sandbox (internal)",
+                        hostValue = "Tidak terlihat situs",
+                        virtualValue = "${clone.virtualSerial.take(8)}… • ${clone.virtualMacAddress}"
                     )
                     ComparisonRow(
-                        field = "Lokasi & Operator",
+                        field = "Timezone, Bahasa & Geo",
                         hostValue = "Asli Perangkat",
-                        virtualValue = "${clone.city} • ${clone.carrierName} (${clone.mccMnc})"
+                        virtualValue = "${clone.timezoneId} • ${clone.localeTag} • ${clone.city}"
                     )
                     if (clone.apkDigestSha256.isNotBlank()) {
                         ComparisonRow(
@@ -196,7 +194,7 @@ fun CloneInspectorSheet(
                     ComparisonRow(
                         field = "Rute Jaringan",
                         hostValue = "Koneksi Utama",
-                        virtualValue = if (clone.proxyEnabled) "${clone.proxyType} ${clone.proxyHost}:${clone.proxyPort}" else "Rute Regional (${clone.regionCode})"
+                        virtualValue = if (clone.proxyEnabled) "${clone.proxyType} ${clone.proxyHost}:${clone.proxyPort}" else "Tanpa proxy (IP perangkat asli)"
                     )
                 }
             }
