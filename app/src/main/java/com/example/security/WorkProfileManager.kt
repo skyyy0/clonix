@@ -6,10 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
-import android.content.pm.UserInfo
 import android.os.Build
+import android.os.Process
 import android.os.UserHandle
-import android.os.UserManager
 
 /** Outcome of trying to open a clone that lives in the work profile. */
 sealed interface NativeLaunchResult {
@@ -48,8 +47,6 @@ class WorkProfileManager(private val context: Context) {
 
     private val dpm: DevicePolicyManager? =
         context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
-    private val userManager: UserManager? =
-        context.getSystemService(Context.USER_SERVICE) as? UserManager
     private val launcherApps: LauncherApps? =
         context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as? LauncherApps
 
@@ -57,16 +54,18 @@ class WorkProfileManager(private val context: Context) {
         get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_MANAGED_USERS)
 
+    /**
+     * The work profile user, if the device already has one that Clonix can see.
+     * `LauncherApps.profiles` is the public way for an app to enumerate the users in
+     * its own profile group, which is exactly the set containing the work profile.
+     */
     val profileUser: UserHandle?
         get() = runCatching {
-            val profiles: List<UserInfo> = userManager?.getProfiles(UserHandle.myUserId()).orEmpty()
-            profiles.firstOrNull { it.isManagedProfile }?.userHandle
+            val me = Process.myUserHandle()
+            launcherApps?.profiles?.firstOrNull { it != me }
         }.getOrNull()
 
     val hasProfile: Boolean get() = profileUser != null
-
-    val isProfileOwner: Boolean
-        get() = runCatching { dpm?.isProfileOwnerApp(context.packageName) == true }.getOrDefault(false)
 
     /** Intent for the system consent screen that creates the work profile. */
     fun provisioningIntent(): Intent? {
@@ -133,7 +132,7 @@ class WorkProfileManager(private val context: Context) {
     }
 
     /** Identity note shown in the UI for native clones. */
-    fun identityNote(): String = if (hasProfile && isProfileOwner) {
+    fun identityNote(): String = if (hasProfile) {
         "Profil kerja aktif: Android ID, akun, dan penyimpanan klon berbeda dari aplikasi asli. " +
             "IMEI, serial, dan Build tetap milik perangkat karena dibatasi Android."
     } else {
