@@ -426,6 +426,7 @@ fun ClonixRootApp(
                 app = targetApp,
                 defaultRegionCode = preferences.defaultRegionCode,
                 exitIpReport = exitIpReport,
+                existingCloneCount = clonedApps.count { it.packageName == targetApp.packageName },
                 onProbeExitIp = { proxyCfg, regionCode ->
                     viewModel.probeNetworkExitIp(proxyCfg, regionCode)
                 },

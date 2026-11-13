@@ -116,8 +116,9 @@ class InstalledAppsRepository(private val context: Context) {
 
             val portalSpec = knownSocialPortals[pkg]
             val category = portalSpec?.category ?: inferCategory(pkg, label, appInfo)
-            // Installed device apps are best cloned natively (real second instance).
-            val launchMode = LaunchMode.WORK_PROFILE
+            // Default clone lives inside Clonix (its own web identity, repeatable for the
+            // same app). The work-profile mode stays available as an explicit opt-in.
+            val launchMode = LaunchMode.ISOLATED_CONTAINER
             val portalUrl = portalSpec?.url ?: inferWebFallback(pkg)
 
             results += InstalledAppInfo(

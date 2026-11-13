@@ -79,6 +79,7 @@ fun ConfigureCloneSheet(
     app: InstalledAppInfo,
     defaultRegionCode: String,
     exitIpReport: NetworkExitReport?,
+    existingCloneCount: Int = 0,
     onProbeExitIp: (ProxyConfig?, String) -> Unit,
     onDismiss: () -> Unit,
     onConfirmClone: (
@@ -105,8 +106,11 @@ fun ConfigureCloneSheet(
     }
     var selectedPlatform by remember { mutableStateOf(DevicePlatform.ANDROID) }
     var selectedModelIdx by remember(selectedRegion, selectedPlatform) { mutableIntStateOf(0) }
-    var customLabel by remember(app, selectedRegion, selectedPlatform) {
-        mutableStateOf("${app.appName} • ${selectedRegion.code} ${selectedPlatform.badge}")
+    var customLabel by remember(app, selectedRegion, selectedPlatform, existingCloneCount) {
+        mutableStateOf(
+            "${app.appName} • ${selectedRegion.code} ${selectedPlatform.badge}" +
+                if (existingCloneCount > 0) " #${existingCloneCount + 1}" else ""
+        )
     }
     var selectedMode by remember(app) { mutableStateOf(app.recommendedLaunchMode) }
     var portalUrl by remember(app) { mutableStateOf(app.defaultWebPortalUrl) }
@@ -669,6 +673,12 @@ fun ConfigureCloneSheet(
                             style = MaterialTheme.typography.labelSmall,
                             color = scheme.onSurfaceVariant
                         )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Profil kerja hanya bisa menampung satu instance tambahan per aplikasi. Butuh beberapa klon aplikasi yang sama? Pilih mode Kontainer Clonix.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = glass.verifiedEmerald
+                        )
                     }
                 }
             }
@@ -696,7 +706,8 @@ fun ConfigureCloneSheet(
                         } else {
                             "• Penyimpanan, cookie, dan sesi login terpisah penuh dari aplikasi asli.\n" +
                                 "• Identitas yang dibaca layanan: ${modelList.getOrNull(selectedModelIdx)?.displayName ?: "perangkat baru"}, GPU, resolusi, zona waktu ${selectedRegion.timezoneId}, bahasa ${selectedRegion.localeTag}, dan geolokasi ${selectedRegion.city}.\n" +
-                                "• IP keluar mengikuti proxy/VPN Anda — verifikasi dulu di tombol atas."
+                                "• IP keluar mengikuti proxy/VPN Anda — verifikasi dulu di tombol atas.\n" +
+                                "• Aplikasi yang sama boleh dikloning berkali-kali; tiap klon tetap punya identitas sendiri dan tidak berbagi cookie/akun."
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.onSurface

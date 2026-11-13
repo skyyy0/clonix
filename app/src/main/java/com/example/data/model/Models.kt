@@ -63,12 +63,12 @@ enum class LaunchMode(val label: String, val badge: String, val description: Str
     WORK_PROFILE(
         label = "Profil Kerja (aplikasi asli)",
         badge = "NATIVE",
-        description = "Instance aplikasi sungguhan dengan storage, akun, dan Android ID profil yang baru. IMEI & Build tetap milik perangkat."
+        description = "Instance aplikasi asli (APK) di profil kerja: satu klon tambahan per aplikasi, dibuka di luar Clonix lewat tab Kerja. IMEI & Build tetap milik perangkat."
     ),
     ISOLATED_CONTAINER(
         label = "Kontainer Clonix (identitas web)",
         badge = "WEB",
-        description = "Kontainer terisolasi dengan identitas browser & rute negara yang bisa diatur. Butuh proxy/VPN untuk IP negara lain."
+        description = "Klon berjalan di dalam Clonix dengan identitas browser & rute negara sendiri. Bisa berkali-kali untuk aplikasi yang sama; butuh proxy/VPN untuk IP negara lain."
     );
 
     val isNative: Boolean get() = this == WORK_PROFILE
